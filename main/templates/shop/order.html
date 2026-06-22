@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Оформление заказа — Книжный магазин{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4">Оформление заказа</h2>
+        <div class="card mb-4 shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">{{ book.title }}</h5>
+                <p class="card-subtitle text-muted mb-2">{{ book.author }}</p>
+                <p class="fw-bold mb-0">{{ book.price }} руб.</p>
+                <small class="text-success">Доступно: {{ book.stock }} шт.</small>
+            </div>
+        </div>
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+                {{ form.quantity.label_tag }}
+                {{ form.quantity }}
+                {% if form.quantity.errors %}
+                    <div class="text-danger small mt-1">
+                        {% for error in form.quantity.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">Подтвердить заказ</button>
+                <a href="{% url 'book_detail' book.pk %}" class="btn btn-outline-secondary">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

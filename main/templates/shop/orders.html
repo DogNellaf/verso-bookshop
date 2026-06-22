@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}Мои заказы — Книжный магазин{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Мои заказы</h2>
+
+{% if not orders %}
+    <p class="text-muted">У вас ещё нет заказов. <a href="{% url 'index' %}">Перейти в каталог</a></p>
+{% else %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>#</th>
+                    <th>Книга</th>
+                    <th>Цена за шт.</th>
+                    <th>Количество</th>
+                    <th>Итого</th>
+                    <th>Дата</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for order in orders %}
+                    <tr>
+                        <td>{{ forloop.counter }}</td>
+                        <td>
+                            <a href="{% url 'book_detail' order.book.pk %}">{{ order.book.title }}</a>
+                            <small class="d-block text-muted">{{ order.book.author }}</small>
+                        </td>
+                        <td>{{ order.book.price }} руб.</td>
+                        <td>{{ order.quantity }}</td>
+                        <td class="fw-bold">{{ order.total_price }} руб.</td>
+                        <td>{{ order.created_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+{% endblock %}
