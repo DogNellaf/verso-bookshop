@@ -17,12 +17,15 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
 
       - name: Run tests
         run: python manage.py test
@@ -48,5 +51,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Type-check
+        run: pnpm run type-check
+
       - name: Run tests
         run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose config
+        run: docker compose config --quiet
+
+      - name: Build images
+        run: docker compose build

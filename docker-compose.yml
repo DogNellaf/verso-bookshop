@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bookshop}
+      POSTGRES_USER: ${POSTGRES_USER:-bookshop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookshop}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookshop}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      DEBUG: ${DEBUG:-False}
+      SECRET_KEY: ${SECRET_KEY:-please-change-me-in-production}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+      POSTGRES_DB: ${POSTGRES_DB:-bookshop}
+      POSTGRES_USER: ${POSTGRES_USER:-bookshop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookshop}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      SEED_ON_START: ${SEED_ON_START:-1}
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - media:/usr/share/nginx/media:ro
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  media:

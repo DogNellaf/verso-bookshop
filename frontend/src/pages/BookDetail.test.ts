@@ -3,16 +3,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestRouter } from '../test/testRouter'
 
 const mockGetBook = vi.fn()
-const mockCreateOrder = vi.fn()
-const mockGetCurrentUser = vi.fn()
+const mockAddToCart = vi.fn()
 
 vi.mock('../services/api', () => ({
   getBook: (...args: unknown[]) => mockGetBook(...args),
-  createOrder: (...args: unknown[]) => mockCreateOrder(...args),
-  getCurrentUser: (...args: unknown[]) => mockGetCurrentUser(...args),
+  addToCart: (...args: unknown[]) => mockAddToCart(...args),
+  extractApiError: (_err: unknown, fallback: string) => fallback,
+}))
+
+vi.mock('../stores/session', () => ({
+  session: { user: null, cartCount: 0 },
+  setCartCount: vi.fn(),
 }))
 
 import BookDetail from './BookDetail.vue'
+import { session } from '../stores/session'
 
 const book = {
   id: 1,
@@ -26,26 +31,25 @@ const book = {
 
 beforeEach(() => {
   mockGetBook.mockReset()
-  mockCreateOrder.mockReset()
-  mockGetCurrentUser.mockReset()
+  mockAddToCart.mockReset()
+  session.user = null
 })
 
 describe('BookDetail.vue', () => {
-  it('prompts to log in when the user is not authenticated', async () => {
+  it('prompts to log in when not authenticated', async () => {
     mockGetBook.mockResolvedValue({ data: book })
-    mockGetCurrentUser.mockRejectedValue(new Error('unauthenticated'))
     const router = await createTestRouter('/book/1')
     const wrapper = mount(BookDetail, { global: { plugins: [router] } })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Dune')
-    expect(wrapper.text()).toContain('Please log in to place an order')
+    expect(wrapper.text()).toContain('Please log in to add books to your cart')
   })
 
-  it('places an order for an authenticated user', async () => {
+  it('adds to cart for an authenticated user', async () => {
+    session.user = { id: 1, username: 'bob', email: 'b@b.com' }
     mockGetBook.mockResolvedValue({ data: book })
-    mockGetCurrentUser.mockResolvedValue({ data: { id: 1, username: 'bob', email: 'b@b.com' } })
-    mockCreateOrder.mockResolvedValue({ data: { id: 1 } })
+    mockAddToCart.mockResolvedValue({ data: { total_quantity: 1 } })
     const router = await createTestRouter('/book/1')
     const wrapper = mount(BookDetail, { global: { plugins: [router] } })
     await flushPromises()
@@ -53,18 +57,17 @@ describe('BookDetail.vue', () => {
     await wrapper.find('button.btn-primary').trigger('click')
     await flushPromises()
 
-    expect(mockCreateOrder).toHaveBeenCalledWith(1, 1)
-    expect(wrapper.text()).toContain('Order placed successfully')
+    expect(mockAddToCart).toHaveBeenCalledWith(1, 1)
+    expect(wrapper.text()).toContain('Added')
   })
 
-  it('disables ordering when the book is out of stock', async () => {
+  it('disables add-to-cart when out of stock', async () => {
+    session.user = { id: 1, username: 'bob', email: 'b@b.com' }
     mockGetBook.mockResolvedValue({ data: { ...book, in_stock: false } })
-    mockGetCurrentUser.mockResolvedValue({ data: { id: 1, username: 'bob', email: 'b@b.com' } })
     const router = await createTestRouter('/book/1')
     const wrapper = mount(BookDetail, { global: { plugins: [router] } })
     await flushPromises()
 
-    const button = wrapper.find('button.btn-primary')
-    expect(button.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('button.btn-primary').attributes('disabled')).toBeDefined()
   })
 })
