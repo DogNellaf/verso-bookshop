@@ -62,12 +62,14 @@
     @apply px-4 py-2 rounded-md font-medium transition-colors;
   }
 
+  /* Tailwind v4 can't @apply a custom class (e.g. `btn`), so the base
+     button utilities are inlined into each variant instead. */
   .btn-primary {
-    @apply btn bg-accent text-accent-foreground hover:bg-accent/90;
+    @apply px-4 py-2 rounded-md font-medium transition-colors bg-accent text-accent-foreground hover:bg-accent/90;
   }
 
   .btn-secondary {
-    @apply btn bg-secondary text-secondary-foreground hover:bg-secondary/90;
+    @apply px-4 py-2 rounded-md font-medium transition-colors bg-secondary text-secondary-foreground hover:bg-secondary/90;
   }
 
   .card {
