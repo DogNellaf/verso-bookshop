@@ -72,7 +72,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { createOrder, getBook, getCurrentUser, type Book, type User } from '../services/api'
+import { createOrder, extractApiError, getBook, getCurrentUser, type Book, type User } from '../services/api'
 
 const route = useRoute()
 const book = ref<Book | null>(null)
@@ -104,7 +104,7 @@ const placeOrder = async () => {
     quantity.value = 1
     setTimeout(() => { orderSuccess.value = false }, 3000)
   } catch (err) {
-    error.value = 'Failed to place order. Please try again.'
+    error.value = extractApiError(err, 'Failed to place order. Please try again.')
     console.error('[bookstore] Order error:', err)
   } finally {
     ordering.value = false
