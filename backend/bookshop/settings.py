@@ -12,6 +12,11 @@ DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
 
+# In development, always allow the common local hosts so `runserver` works
+# whether it's reached via localhost, 127.0.0.1, or the 0.0.0.0 bind address.
+if DEBUG:
+    ALLOWED_HOSTS += ["localhost", "127.0.0.1", "0.0.0.0"]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

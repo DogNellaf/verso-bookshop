@@ -9,7 +9,7 @@ FRONTEND_DIR="$ROOT_DIR/frontend"
 VENV_DIR="$BACKEND_DIR/.venv"
 
 echo "==> Setting up backend"
-if [ ! -d "$VENV_DIR" ]; then
+if [ ! -x "$VENV_DIR/bin/python" ]; then
   python3 -m venv "$VENV_DIR"
 fi
 source "$VENV_DIR/bin/activate"
@@ -31,7 +31,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "==> Starting backend (http://127.0.0.1:8000)"
-python "$BACKEND_DIR/manage.py" runserver 0.0.0.0:8000 &
+python "$BACKEND_DIR/manage.py" runserver 127.0.0.1:8000 &
 BACKEND_PID=$!
 
 echo "==> Starting frontend (http://127.0.0.1:5173)"
