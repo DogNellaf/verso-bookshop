@@ -60,6 +60,7 @@ source .venv/bin/activate      # Linux / macOS
 
 pip install -r requirements.txt
 python manage.py migrate
+python manage.py seed              # опционально: демо-книги, обложки, демо-юзер и заказы
 python manage.py createsuperuser   # опционально, для /admin/
 python manage.py runserver
 ```
@@ -81,6 +82,20 @@ pnpm run dev
 | `ALLOWED_HOSTS` | Список разрешённых хостов через запятую | _(пусто)_ |
 | `CORS_ALLOWED_ORIGINS` | Список источников, которым разрешён доступ к API | `http://localhost:5173,http://127.0.0.1:5173` |
 | `CSRF_TRUSTED_ORIGINS` | Список доверенных источников для небезопасных запросов | `http://localhost:5173,http://127.0.0.1:5173` |
+
+## Демо-данные
+
+Чтобы заполнить каталог примерами книг (обложки скачиваются с Open Library),
+создать демо-пользователя и заказы — удобно для скриншотов:
+
+```bash
+cd backend
+python manage.py seed          # добавить демо-данные (идемпотентно)
+python manage.py seed --flush  # сначала очистить книги и заказы, затем заполнить
+```
+
+Создаётся демо-аккаунт — логин `demo`, пароль `demopass123` — с уже
+оформленными заказами.
 
 ## Запуск тестов
 

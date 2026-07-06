@@ -2,7 +2,7 @@
   <div class="auth-wrapper">
     <div class="auth-card">
       <h1 class="auth-card__title">Create an account</h1>
-      <p class="auth-card__subtitle">Join Bookstore and start building your reading list.</p>
+      <p class="auth-card__subtitle">Join Verso and start building your reading list.</p>
 
       <form @submit.prevent="handleRegister">
         <div class="form-group">

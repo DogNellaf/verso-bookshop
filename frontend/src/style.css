@@ -82,12 +82,15 @@ html, body { margin: 0; padding: 0; }
 }
 
 .bs-brand {
-  font-size: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  font-size: 1.3rem;
   font-weight: 800;
   color: var(--bs-fg);
   text-decoration: none;
   white-space: nowrap;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.02em;
   cursor: pointer;
   background: none;
   border: none;
@@ -95,6 +98,16 @@ html, body { margin: 0; padding: 0; }
 }
 
 .bs-brand:hover { opacity: .85; }
+
+.bs-brand__mark {
+  width: 30px;
+  height: 30px;
+  display: block;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
+.bs-brand__name { line-height: 1; }
 
 .bs-header__nav {
   display: flex;

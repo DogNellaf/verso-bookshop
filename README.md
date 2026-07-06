@@ -60,6 +60,7 @@ source .venv/bin/activate      # Linux / macOS
 
 pip install -r requirements.txt
 python manage.py migrate
+python manage.py seed              # optional: demo books, covers, a demo user & orders
 python manage.py createsuperuser   # optional, for /admin/
 python manage.py runserver
 ```
@@ -81,6 +82,20 @@ pnpm run dev
 | `ALLOWED_HOSTS` | Comma-separated list of allowed hosts | _(empty)_ |
 | `CORS_ALLOWED_ORIGINS` | Comma-separated origins allowed to call the API | `http://localhost:5173,http://127.0.0.1:5173` |
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated origins trusted for unsafe requests | `http://localhost:5173,http://127.0.0.1:5173` |
+
+## Demo data
+
+To populate the catalog with sample books (covers downloaded from Open
+Library), a demo user and some orders — handy for screenshots:
+
+```bash
+cd backend
+python manage.py seed          # add demo data (idempotent)
+python manage.py seed --flush  # wipe books & orders first, then reseed
+```
+
+This creates a demo account — username `demo`, password `demopass123` — with a
+few orders already placed.
 
 ## Running Tests
 

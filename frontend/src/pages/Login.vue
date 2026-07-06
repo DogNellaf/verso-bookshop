@@ -2,7 +2,7 @@
   <div class="auth-wrapper">
     <div class="auth-card">
       <h1 class="auth-card__title">Welcome back</h1>
-      <p class="auth-card__subtitle">Sign in to your Bookstore account.</p>
+      <p class="auth-card__subtitle">Sign in to your Verso account.</p>
 
       <form @submit.prevent="handleLogin">
         <div class="form-group">
