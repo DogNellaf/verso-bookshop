@@ -70,7 +70,7 @@ const handleLogin = async () => {
   loading.value = true
   error.value = null
   try {
-    await login(form.username, form.password)
+    await login(form.value.username, form.value.password)
     router.push('/')
   } catch (err: any) {
     error.value = err.response?.data?.detail || 'Login failed. Please check your credentials.'
