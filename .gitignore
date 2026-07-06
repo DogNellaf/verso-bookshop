@@ -33,6 +33,12 @@ static_collected/
 *.swp
 *.swo
 
+# Node / frontend
+node_modules/
+.vite/
+pnpm-debug.log*
+npm-debug.log*
+
 # OS
 .DS_Store
 Thumbs.db
