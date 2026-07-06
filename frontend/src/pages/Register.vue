@@ -1,66 +1,60 @@
 <template>
-  <div class="max-w-md mx-auto">
-    <div class="card p-8">
-      <h1 class="text-2xl font-bold mb-6 text-foreground">Create Account</h1>
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <h1 class="auth-card__title">Create an account</h1>
+      <p class="auth-card__subtitle">Join Bookstore and start building your reading list.</p>
 
       <form @submit.prevent="handleRegister">
-        <div class="mb-4">
-          <label for="username" class="block text-sm font-medium text-foreground mb-2">
-            Username
-          </label>
-          <input 
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input
             id="username"
             v-model="form.username"
+            class="form-input"
             type="text"
+            placeholder="choose_a_username"
+            autocomplete="username"
             required
-            class="w-full px-4 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
-        <div class="mb-4">
-          <label for="email" class="block text-sm font-medium text-foreground mb-2">
-            Email
-          </label>
-          <input 
+        <div class="form-group">
+          <label class="form-label" for="email">Email address</label>
+          <input
             id="email"
             v-model="form.email"
+            class="form-input"
             type="email"
+            placeholder="you@example.com"
+            autocomplete="email"
             required
-            class="w-full px-4 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
-        <div class="mb-6">
-          <label for="password" class="block text-sm font-medium text-foreground mb-2">
-            Password
-          </label>
-          <input 
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input
             id="password"
             v-model="form.password"
+            class="form-input"
             type="password"
+            placeholder="At least 8 characters"
+            autocomplete="new-password"
+            minlength="8"
             required
-            class="w-full px-4 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
-        <div v-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-red-600 dark:text-red-400 text-sm mb-4">
-          {{ error }}
-        </div>
+        <div v-if="error" class="alert alert-error">{{ error }}</div>
 
-        <button 
-          type="submit"
-          :disabled="loading"
-          class="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {{ loading ? 'Creating account...' : 'Register' }}
+        <button type="submit" class="btn btn-primary btn-lg form-submit" :disabled="loading">
+          {{ loading ? 'Creating account…' : 'Create account' }}
         </button>
       </form>
 
-      <p class="mt-4 text-center text-sm text-muted-foreground">
-        Already have an account? 
-        <RouterLink to="/login" class="text-accent hover:underline">
-          Login
-        </RouterLink>
+      <p class="auth-footer">
+        Already have an account?
+        <RouterLink to="/login">Sign in</RouterLink>
       </p>
     </div>
   </div>
@@ -68,7 +62,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter, RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { register } from '../services/api'
 
 const router = useRouter()
@@ -88,7 +82,7 @@ const handleRegister = async () => {
     router.push('/login')
   } catch (err: any) {
     error.value = err.response?.data?.detail || 'Registration failed. Please try again.'
-    console.error('[v0] Registration error:', err)
+    console.error('[bookstore] Registration error:', err)
   } finally {
     loading.value = false
   }

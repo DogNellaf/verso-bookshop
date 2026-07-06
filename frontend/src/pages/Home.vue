@@ -1,84 +1,71 @@
 <template>
-  <div>
-    <div class="mb-12 text-center">
-      <h1 class="text-4xl font-bold mb-4 text-foreground">Welcome to Our Bookstore</h1>
-      <p class="text-lg text-muted-foreground">Browse our collection of quality books</p>
-    </div>
+  <main class="bs-main">
+    <div class="bs-container">
 
-    <div v-if="loading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-accent"></div>
-    </div>
+      <section class="section-hero">
+        <h1 class="section-hero__title">Discover Your Next Favourite Book</h1>
+        <p class="section-hero__subtitle">
+          Thousands of titles across every genre — browse the catalog and place your order.
+        </p>
+      </section>
 
-    <div v-else-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-600 dark:text-red-400">
-      {{ error }}
-    </div>
+      <div v-if="loading" class="state-msg">Loading books…</div>
 
-    <div v-else>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-        <RouterLink
-          v-for="book in books"
-          :key="book.id"
-          :to="`/book/${book.id}`"
-          class="card overflow-hidden hover:shadow-lg transition-shadow"
-        >
-          <div class="aspect-video bg-secondary overflow-hidden">
-            <img 
-              v-if="book.cover" 
-              :src="book.cover" 
-              :alt="book.title"
-              class="w-full h-full object-cover"
+      <div v-else-if="error" class="alert alert-error">{{ error }}</div>
+
+      <section v-else>
+        <div class="book-grid">
+          <RouterLink
+            v-for="book in books"
+            :key="book.id"
+            :to="`/book/${book.id}`"
+            class="card book-card"
+          >
+            <img
+              class="book-card__cover"
+              :src="coverSrc(book)"
+              :alt="`${book.title} cover`"
+              @error="onCoverError($event, book.title)"
             />
-            <div v-else class="w-full h-full flex items-center justify-center text-muted-foreground">
-              No image
+            <div class="book-card__body">
+              <h3 class="book-card__title">{{ book.title }}</h3>
+              <p class="book-card__author">{{ book.author }}</p>
+              <p class="book-card__desc">{{ book.description }}</p>
+              <div class="book-card__footer">
+                <span class="book-card__price">${{ book.price }}</span>
+                <span :class="book.in_stock ? 'badge badge-in-stock' : 'badge badge-out-of-stock'">
+                  {{ book.in_stock ? 'In Stock' : 'Out of Stock' }}
+                </span>
+              </div>
             </div>
-          </div>
-          <div class="p-4">
-            <h3 class="font-bold text-foreground truncate">{{ book.title }}</h3>
-            <p class="text-sm text-muted-foreground mb-2">{{ book.author }}</p>
-            <p class="text-sm text-foreground mb-3 line-clamp-2">{{ book.description }}</p>
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-accent">${{ book.price }}</span>
-              <span 
-                :class="[
-                  'text-xs font-medium px-2 py-1 rounded',
-                  book.in_stock 
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                ]"
-              >
-                {{ book.in_stock ? 'In Stock' : 'Out of Stock' }}
-              </span>
-            </div>
-          </div>
-        </RouterLink>
-      </div>
+          </RouterLink>
+        </div>
 
-      <!-- Pagination -->
-      <div class="flex items-center justify-center gap-4">
-        <button 
-          v-if="previousPage"
-          @click="goToPreviousPage"
-          class="btn-secondary"
-        >
-          Previous
-        </button>
-        <span class="text-sm text-muted-foreground">
-          Page {{ currentPage }}
-        </span>
-        <button 
-          v-if="nextPage"
-          @click="goToNextPage"
-          class="btn-primary"
-        >
-          Next
-        </button>
-      </div>
+        <nav class="pagination" aria-label="Catalog pagination">
+          <button
+            class="btn btn-secondary"
+            :disabled="!previousPage"
+            @click="goToPreviousPage"
+          >
+            ← Previous
+          </button>
+          <span class="pagination__info">Page {{ currentPage }}</span>
+          <button
+            class="btn btn-primary"
+            :disabled="!nextPage"
+            @click="goToNextPage"
+          >
+            Next →
+          </button>
+        </nav>
+      </section>
+
     </div>
-  </div>
+  </main>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { getBooks, type Book } from '../services/api'
 
@@ -88,6 +75,15 @@ const error = ref<string | null>(null)
 const currentPage = ref(1)
 const nextPage = ref<string | null>(null)
 const previousPage = ref<string | null>(null)
+
+const placeholder = (title: string) =>
+  `https://placehold.co/300x450/e5e7eb/6b7280?text=${encodeURIComponent(title)}`
+
+const coverSrc = (book: Book) => book.cover || placeholder(book.title)
+
+const onCoverError = (event: Event, title: string) => {
+  (event.target as HTMLImageElement).src = placeholder(title)
+}
 
 const fetchBooks = async (page = 1) => {
   loading.value = true
@@ -100,30 +96,14 @@ const fetchBooks = async (page = 1) => {
     currentPage.value = page
   } catch (err) {
     error.value = 'Failed to load books. Please try again.'
-    console.error('[v0] Error fetching books:', err)
+    console.error('[bookstore] Error fetching books:', err)
   } finally {
     loading.value = false
   }
 }
 
-const goToNextPage = () => {
-  fetchBooks(currentPage.value + 1)
-}
+const goToNextPage = () => fetchBooks(currentPage.value + 1)
+const goToPreviousPage = () => fetchBooks(currentPage.value - 1)
 
-const goToPreviousPage = () => {
-  fetchBooks(currentPage.value - 1)
-}
-
-onMounted(() => {
-  fetchBooks()
-})
+onMounted(() => fetchBooks())
 </script>
-
-<style scoped>
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-</style>

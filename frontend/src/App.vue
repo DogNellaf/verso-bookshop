@@ -1,93 +1,67 @@
 <template>
-  <div class="min-h-screen bg-background">
-    <header class="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-border shadow-sm">
-      <nav class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-        <RouterLink to="/" class="text-2xl font-bold text-accent">
-          📚 Bookstore
-        </RouterLink>
-        
-        <div class="flex items-center gap-4">
-          <RouterLink 
-            v-if="!user"
-            to="/login" 
-            class="text-sm font-medium hover:text-accent transition-colors"
-          >
-            Login
-          </RouterLink>
-          <RouterLink 
-            v-if="!user"
-            to="/register" 
-            class="btn-primary text-sm"
-          >
-            Register
-          </RouterLink>
-          
-          <template v-if="user">
-            <RouterLink 
-              to="/orders" 
-              class="text-sm font-medium hover:text-accent transition-colors"
-            >
-              My Orders
-            </RouterLink>
-            <button 
-              @click="logout"
-              class="text-sm font-medium hover:text-accent transition-colors"
-            >
-              Logout
-            </button>
-            <span class="text-sm text-muted-foreground">{{ user.username }}</span>
-          </template>
+  <div class="bs-root">
+    <header class="bs-header">
+      <div class="bs-container">
+        <div class="bs-header__inner">
+          <RouterLink to="/" class="bs-brand">📚 Bookstore</RouterLink>
+
+          <nav class="bs-header__nav">
+            <template v-if="user">
+              <span class="bs-nav-username">Hi, {{ user.username }}</span>
+              <RouterLink to="/orders" class="bs-nav-link">My Orders</RouterLink>
+              <button class="btn btn-danger btn-sm" @click="handleLogout">Logout</button>
+            </template>
+            <template v-else>
+              <RouterLink to="/login" class="bs-nav-link">Login</RouterLink>
+              <RouterLink to="/register" class="btn btn-primary btn-sm">Register</RouterLink>
+            </template>
+          </nav>
         </div>
-      </nav>
+      </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 py-8">
-      <RouterView />
-    </main>
+    <RouterView />
 
-    <footer class="mt-16 bg-secondary dark:bg-slate-800 border-t border-border py-8">
-      <div class="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-        <p>&copy; 2024 Bookstore. All rights reserved.</p>
+    <footer class="bs-footer">
+      <div class="bs-container">
+        <p>© 2025 📚 Bookstore. All rights reserved.</p>
       </div>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { getCurrentUser, logout, type User } from './services/api'
 
-interface User {
-  id: number
-  username: string
-}
-
+const router = useRouter()
 const user = ref<User | null>(null)
 
-onMounted(async () => {
-  // Check if user is logged in
+const checkUser = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/user/', {
-      credentials: 'include',
-    })
-    if (response.ok) {
-      user.value = await response.json()
-    }
-  } catch (error) {
-    console.log('[v0] User check failed:', error)
-  }
-})
-
-const logout = async () => {
-  try {
-    await fetch('http://127.0.0.1:8000/api/logout/', {
-      method: 'POST',
-      credentials: 'include',
-    })
+    const response = await getCurrentUser()
+    user.value = response.data
+  } catch {
     user.value = null
-    window.location.href = '/'
-  } catch (error) {
-    console.error('[v0] Logout error:', error)
   }
 }
+
+const handleLogout = async () => {
+  try {
+    await logout()
+  } catch (error) {
+    console.error('[bookstore] Logout error:', error)
+  } finally {
+    user.value = null
+    router.push('/')
+  }
+}
+
+onMounted(checkUser)
+// Re-check auth state after every navigation so the header reflects
+// login/logout that happened on another page.
+router.afterEach(() => {
+  checkUser()
+})
 </script>

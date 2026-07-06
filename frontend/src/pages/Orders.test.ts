@@ -40,7 +40,7 @@ describe('Orders.vue', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Dune')
-    expect(wrapper.text()).toContain('Quantity:')
+    expect(wrapper.text()).toContain('Qty:')
     expect(wrapper.text()).toContain('2')
     expect(wrapper.text()).toContain('39.98')
   })
