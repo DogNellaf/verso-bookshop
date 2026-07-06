@@ -20,7 +20,7 @@ from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from main.models import Book, Order
+from main.models import Book, Cart, CartItem, Order, OrderItem
 
 BOOKS = [
     {
@@ -172,11 +172,17 @@ BOOKS = [
 DEMO_USERNAME = "demo"
 DEMO_PASSWORD = "demopass123"
 
-# (book title, quantity) — orders placed by the demo user.
+# Each order is a list of (book title, quantity) line items, plus a status.
 DEMO_ORDERS = [
-    ("The Great Gatsby", 1),
-    ("1984", 2),
-    ("The Hobbit", 1),
+    ("delivered", [("The Great Gatsby", 1), ("1984", 2)]),
+    ("shipped", [("The Hobbit", 1)]),
+    ("pending", [("Fahrenheit 451", 1), ("Animal Farm", 1), ("Jane Eyre", 2)]),
+]
+
+# Items left in the demo user's cart (for the cart-page screenshot).
+DEMO_CART = [
+    ("Frankenstein", 1),
+    ("Pride and Prejudice", 2),
 ]
 
 COVER_URL = "https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg?default=false"
@@ -200,6 +206,7 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         if options["flush"]:
+            Cart.objects.all().delete()
             deleted_orders = Order.objects.all().delete()[0]
             deleted_books = Book.objects.all().delete()[0]
             self.stdout.write(
@@ -276,20 +283,40 @@ class Command(BaseCommand):
         user.set_password(DEMO_PASSWORD)
         user.save()
 
-        # Reset this demo user's orders so re-running stays clean.
+        # Reset this demo user's orders and cart so re-running stays clean.
         Order.objects.filter(buyer=user).delete()
+        Cart.objects.filter(buyer=user).delete()
+
         order_count = 0
-        for title, quantity in DEMO_ORDERS:
+        for status, lines in DEMO_ORDERS:
+            order = Order.objects.create(buyer=user, status=status)
+            for title, quantity in lines:
+                book = books_by_title.get(title)
+                if book is None:
+                    continue
+                OrderItem.objects.create(
+                    order=order,
+                    book=book,
+                    title=book.title,
+                    unit_price=book.price,
+                    quantity=quantity,
+                )
+            order.recalculate_total()
+            order_count += 1
+
+        cart = Cart.objects.create(buyer=user)
+        cart_items = 0
+        for title, quantity in DEMO_CART:
             book = books_by_title.get(title)
             if book is None:
                 continue
-            Order.objects.create(buyer=user, book=book, quantity=quantity)
-            order_count += 1
+            CartItem.objects.create(cart=cart, book=book, quantity=quantity)
+            cart_items += 1
 
         state = "created" if created else "updated"
         self.stdout.write(
             self.style.SUCCESS(
                 f"Demo user '{DEMO_USERNAME}' {state} (password: {DEMO_PASSWORD}), "
-                f"{order_count} order(s) placed."
+                f"{order_count} order(s) placed, {cart_items} item(s) in cart."
             )
         )

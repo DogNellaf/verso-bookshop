@@ -9,12 +9,14 @@ import BookDetail from './pages/BookDetail.vue'
 import Register from './pages/Register.vue'
 import Login from './pages/Login.vue'
 import Orders from './pages/Orders.vue'
+import Cart from './pages/Cart.vue'
 
 const routes = [
   { path: '/', component: Home },
   { path: '/book/:id', component: BookDetail },
   { path: '/register', component: Register },
   { path: '/login', component: Login },
+  { path: '/cart', component: Cart },
   { path: '/orders', component: Orders },
 ]
 

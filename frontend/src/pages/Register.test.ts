@@ -4,7 +4,7 @@ import { createTestRouter } from '../test/testRouter'
 
 const mockRegister = vi.fn()
 
-vi.mock('../services/api', () => ({
+vi.mock('../stores/session', () => ({
   register: (...args: unknown[]) => mockRegister(...args),
 }))
 
@@ -15,8 +15,8 @@ beforeEach(() => {
 })
 
 describe('Register.vue', () => {
-  it('registers and redirects to login on success', async () => {
-    mockRegister.mockResolvedValue({ data: { id: 1, username: 'alice', email: 'alice@example.com' } })
+  it('registers and redirects home on success', async () => {
+    mockRegister.mockResolvedValue(undefined)
     const router = await createTestRouter('/register')
     const pushSpy = vi.spyOn(router, 'push')
     const wrapper = mount(Register, { global: { plugins: [router] } })
@@ -28,11 +28,11 @@ describe('Register.vue', () => {
     await flushPromises()
 
     expect(mockRegister).toHaveBeenCalledWith('alice', 'alice@example.com', 'secret123')
-    expect(pushSpy).toHaveBeenCalledWith('/login')
+    expect(pushSpy).toHaveBeenCalledWith('/')
   })
 
-  it('shows an error message when registration fails', async () => {
-    mockRegister.mockRejectedValue({ response: { data: { detail: 'Username already taken.' } } })
+  it('shows an error when registration fails', async () => {
+    mockRegister.mockRejectedValue({ response: { data: { username: ['A user with that username already exists.'] } } })
     const router = await createTestRouter('/register')
     const wrapper = mount(Register, { global: { plugins: [router] } })
 
@@ -42,6 +42,6 @@ describe('Register.vue', () => {
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Username already taken.')
+    expect(wrapper.text()).toContain('already exists')
   })
 })

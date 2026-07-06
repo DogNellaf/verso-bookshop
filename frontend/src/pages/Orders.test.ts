@@ -24,14 +24,19 @@ describe('Orders.vue', () => {
     expect(wrapper.text()).toContain("haven't placed any orders")
   })
 
-  it('renders order details for each order', async () => {
+  it('renders multi-item orders with status and total', async () => {
     mockGetOrders.mockResolvedValue({
       data: [
         {
-          id: 1,
-          book: { id: 1, title: 'Dune', author: 'Herbert', price: '19.99', cover: '', description: '', in_stock: true },
-          quantity: 2,
+          id: 42,
+          status: 'delivered',
+          total: '52.97',
+          item_count: 3,
           created_at: '2026-01-01T00:00:00Z',
+          items: [
+            { id: 1, book: null, title: 'Dune', unit_price: '19.99', quantity: 2, subtotal: '39.98' },
+            { id: 2, book: null, title: '1984', unit_price: '12.99', quantity: 1, subtotal: '12.99' },
+          ],
         },
       ],
     })
@@ -39,10 +44,11 @@ describe('Orders.vue', () => {
     const wrapper = mount(Orders, { global: { plugins: [router] } })
     await flushPromises()
 
+    expect(wrapper.text()).toContain('Order #42')
+    expect(wrapper.text()).toContain('delivered')
     expect(wrapper.text()).toContain('Dune')
-    expect(wrapper.text()).toContain('Qty:')
-    expect(wrapper.text()).toContain('2')
-    expect(wrapper.text()).toContain('39.98')
+    expect(wrapper.text()).toContain('1984')
+    expect(wrapper.text()).toContain('52.97')
   })
 
   it('shows an error message when the request fails', async () => {

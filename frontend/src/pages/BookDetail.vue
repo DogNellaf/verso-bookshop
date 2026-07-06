@@ -32,10 +32,12 @@
 
           <p class="book-detail__desc">{{ book.description }}</p>
 
-          <div v-if="orderSuccess" class="alert alert-success">Order placed successfully!</div>
+          <div v-if="addedMessage" class="alert alert-success">
+            {{ addedMessage }} <RouterLink to="/cart">View cart →</RouterLink>
+          </div>
           <div v-if="error && book" class="alert alert-error">{{ error }}</div>
 
-          <template v-if="user">
+          <template v-if="session.user">
             <div class="quantity-stepper">
               <span class="quantity-stepper__label">Quantity</span>
               <button class="qty-btn" :disabled="quantity <= 1" @click="decreaseQuantity" aria-label="Decrease quantity">−</button>
@@ -51,15 +53,15 @@
 
             <button
               class="btn btn-primary btn-lg"
-              :disabled="!book.in_stock || ordering"
-              @click="placeOrder"
+              :disabled="!book.in_stock || adding"
+              @click="addToCartHandler"
             >
-              {{ ordering ? 'Placing order…' : 'Add to Order' }}
+              {{ adding ? 'Adding…' : 'Add to Cart' }}
             </button>
           </template>
 
           <div v-else class="login-prompt">
-            <p>Please log in to place an order</p>
+            <p>Please log in to add books to your cart</p>
             <RouterLink to="/login" class="btn btn-primary">Log in</RouterLink>
           </div>
         </div>
@@ -72,16 +74,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import { createOrder, extractApiError, getBook, getCurrentUser, type Book, type User } from '../services/api'
+import { addToCart, extractApiError, getBook, type Book } from '../services/api'
+import { session, setCartCount } from '../stores/session'
 
 const route = useRoute()
 const book = ref<Book | null>(null)
-const user = ref<User | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const quantity = ref(1)
-const ordering = ref(false)
-const orderSuccess = ref(false)
+const adding = ref(false)
+const addedMessage = ref<string | null>(null)
 
 const placeholder = computed(() =>
   `https://placehold.co/400x600/e5e7eb/6b7280?text=${encodeURIComponent(book.value?.title ?? 'Book')}`
@@ -94,20 +96,21 @@ const onCoverError = (event: Event) => {
 const increaseQuantity = () => { quantity.value++ }
 const decreaseQuantity = () => { if (quantity.value > 1) quantity.value-- }
 
-const placeOrder = async () => {
-  if (!book.value || !user.value) return
-  ordering.value = true
+const addToCartHandler = async () => {
+  if (!book.value) return
+  adding.value = true
   error.value = null
+  addedMessage.value = null
   try {
-    await createOrder(book.value.id, quantity.value)
-    orderSuccess.value = true
+    const { data } = await addToCart(book.value.id, quantity.value)
+    setCartCount(data.total_quantity)
+    addedMessage.value = `Added ${quantity.value} × "${book.value.title}" to your cart.`
     quantity.value = 1
-    setTimeout(() => { orderSuccess.value = false }, 3000)
   } catch (err) {
-    error.value = extractApiError(err, 'Failed to place order. Please try again.')
-    console.error('[bookstore] Order error:', err)
+    error.value = extractApiError(err, 'Failed to add to cart. Please try again.')
+    console.error('[verso] Add to cart error:', err)
   } finally {
-    ordering.value = false
+    adding.value = false
   }
 }
 
@@ -120,23 +123,11 @@ const fetchBook = async () => {
     book.value = response.data
   } catch (err) {
     error.value = 'Failed to load book details. Please try again.'
-    console.error('[bookstore] Error fetching book:', err)
+    console.error('[verso] Error fetching book:', err)
   } finally {
     loading.value = false
   }
 }
 
-const checkUser = async () => {
-  try {
-    const response = await getCurrentUser()
-    user.value = response.data
-  } catch {
-    user.value = null
-  }
-}
-
-onMounted(() => {
-  fetchBook()
-  checkUser()
-})
+onMounted(fetchBook)
 </script>

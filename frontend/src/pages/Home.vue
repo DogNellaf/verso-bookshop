@@ -5,13 +5,26 @@
       <section class="section-hero">
         <h1 class="section-hero__title">Discover Your Next Favourite Book</h1>
         <p class="section-hero__subtitle">
-          Thousands of titles across every genre — browse the catalog and place your order.
+          Thousands of titles across every genre — browse the catalog and fill your cart.
         </p>
       </section>
+
+      <form class="catalog-search" @submit.prevent="runSearch">
+        <input
+          v-model="searchTerm"
+          class="form-input"
+          type="search"
+          placeholder="Search by title or author…"
+          aria-label="Search books"
+        />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
 
       <div v-if="loading" class="state-msg">Loading books…</div>
 
       <div v-else-if="error" class="alert alert-error">{{ error }}</div>
+
+      <div v-else-if="books.length === 0" class="state-msg">No books found.</div>
 
       <section v-else>
         <div class="book-grid">
@@ -42,19 +55,11 @@
         </div>
 
         <nav class="pagination" aria-label="Catalog pagination">
-          <button
-            class="btn btn-secondary"
-            :disabled="!previousPage"
-            @click="goToPreviousPage"
-          >
+          <button class="btn btn-secondary" :disabled="!previousPage" @click="goToPreviousPage">
             ← Previous
           </button>
           <span class="pagination__info">Page {{ currentPage }}</span>
-          <button
-            class="btn btn-primary"
-            :disabled="!nextPage"
-            @click="goToNextPage"
-          >
+          <button class="btn btn-primary" :disabled="!nextPage" @click="goToNextPage">
             Next →
           </button>
         </nav>
@@ -75,12 +80,12 @@ const error = ref<string | null>(null)
 const currentPage = ref(1)
 const nextPage = ref<string | null>(null)
 const previousPage = ref<string | null>(null)
+const searchTerm = ref('')
+const activeSearch = ref('')
 
 const placeholder = (title: string) =>
   `https://placehold.co/300x450/e5e7eb/6b7280?text=${encodeURIComponent(title)}`
-
 const coverSrc = (book: Book) => book.cover || placeholder(book.title)
-
 const onCoverError = (event: Event, title: string) => {
   (event.target as HTMLImageElement).src = placeholder(title)
 }
@@ -89,17 +94,22 @@ const fetchBooks = async (page = 1) => {
   loading.value = true
   error.value = null
   try {
-    const response = await getBooks(page)
+    const response = await getBooks(page, activeSearch.value)
     books.value = response.data.results
     nextPage.value = response.data.next
     previousPage.value = response.data.previous
     currentPage.value = page
   } catch (err) {
     error.value = 'Failed to load books. Please try again.'
-    console.error('[bookstore] Error fetching books:', err)
+    console.error('[verso] Error fetching books:', err)
   } finally {
     loading.value = false
   }
+}
+
+const runSearch = () => {
+  activeSearch.value = searchTerm.value.trim()
+  fetchBooks(1)
 }
 
 const goToNextPage = () => fetchBooks(currentPage.value + 1)

@@ -1,54 +1,63 @@
-# Book Shop
+# Verso — Online Bookstore
 
 > 🇬🇧 English | [🇷🇺 Русский](README.ru.md)
 
-An online bookstore application: a Django REST API + admin backend, and a Vue 3 frontend. Browse the catalog, register an account, and place orders.
+A full-stack online bookstore: a Django REST API + admin backend and a Vue 3
+single-page frontend. Browse the catalog, register, fill a persistent cart and
+check out. JWT-authenticated, containerised with Docker.
 
 ## Features
 
-- Book catalog with cover images, descriptions, and stock status
-- Book detail pages
-- User registration and login (session-based)
-- Order placement with stock validation
-- Personal order history
-- Paginated catalog
-- Django admin panel for content management
+- Book catalog with cover images, search, stock status and pagination
+- Book detail pages with an "Add to cart" flow
+- JWT authentication (register / login / token refresh)
+- Persistent per-user shopping cart (add / update / remove items)
+- Atomic checkout that validates stock and locks rows to prevent overselling
+- Multi-item orders with a price snapshot per line and order status
+- Django admin for managing books, carts and orders
+- Fully dockerised (Postgres + Django/gunicorn + nginx)
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Backend | Python 3, Django 5, Django REST Framework |
-| Database | SQLite (default) |
-| Frontend | Vue 3, Vite, TypeScript, Tailwind CSS |
-| Image handling | Pillow |
+| Backend | Python 3.12, Django 5, Django REST Framework, SimpleJWT |
+| Database | PostgreSQL (Docker) / SQLite (local dev) |
+| Frontend | Vue 3, Vite, TypeScript, Vue Router |
+| Serving | gunicorn + WhiteNoise (backend), nginx (frontend) |
+| Auth | JWT (access + refresh) |
 
-## Requirements
-
-- Python 3.10+
-- Node.js 20+
-- pnpm (or npm)
-
-## Quick start (dev)
-
-A single script bootstraps both backend and frontend and runs them together:
+## Quick start with Docker (recommended)
 
 ```bash
-# Linux / macOS
-./scripts/build-dev.sh
+cp .env.example .env      # optional: adjust secrets/ports
+docker compose up --build
 ```
 
-```powershell
-# Windows
-.\scripts\build-dev.ps1
+Then open **http://localhost:8080/**. On first boot the backend migrates and
+seeds demo data automatically (set `SEED_ON_START=0` to skip).
+
+- Frontend (SPA): http://localhost:8080/
+- API: http://localhost:8080/api/
+- Admin: http://localhost:8080/admin/
+
+The stack runs three services: `db` (Postgres), `backend` (Django/gunicorn) and
+`frontend` (nginx serving the built SPA and proxying the API).
+
+## Local dev (without Docker)
+
+A single script bootstraps and runs both apps against SQLite:
+
+```bash
+./scripts/build-dev.sh      # Linux / macOS
+.\scripts\build-dev.ps1     # Windows (PowerShell)
 ```
 
-This creates the backend virtual environment, installs dependencies for both projects, applies migrations, and starts:
+- Backend (REST API + admin): http://127.0.0.1:8000/
+- Frontend (SPA): http://127.0.0.1:5173/
 
-- Backend (REST API + admin): `http://127.0.0.1:8000/`
-- Frontend (SPA): `http://127.0.0.1:5173/`
-
-## Manual setup
+<details>
+<summary>Manual setup</summary>
 
 ### Backend
 
@@ -60,7 +69,7 @@ source .venv/bin/activate      # Linux / macOS
 
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py seed              # optional: demo books, covers, a demo user & orders
+python manage.py seed              # optional demo data
 python manage.py createsuperuser   # optional, for /admin/
 python manage.py runserver
 ```
@@ -72,80 +81,88 @@ cd frontend
 pnpm install
 pnpm run dev
 ```
+</details>
 
-## Environment Variables (backend)
+## Environment variables
 
 | Variable | Description | Default |
 |---|---|---|
 | `SECRET_KEY` | Django secret key | insecure dev key |
-| `DEBUG` | Enable debug mode (`True`/`False`) | `True` |
-| `ALLOWED_HOSTS` | Comma-separated list of allowed hosts | _(empty)_ |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated origins allowed to call the API | `http://localhost:5173,http://127.0.0.1:5173` |
-| `CSRF_TRUSTED_ORIGINS` | Comma-separated origins trusted for unsafe requests | `http://localhost:5173,http://127.0.0.1:5173` |
+| `DEBUG` | Debug mode (`True`/`False`) | `True` |
+| `ALLOWED_HOSTS` | Comma-separated allowed hosts | _(empty)_ |
+| `CORS_ALLOWED_ORIGINS` | Origins allowed to call the API | dev frontend origins |
+| `CSRF_TRUSTED_ORIGINS` | Trusted origins for unsafe requests | dev frontend origins |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | Enable Postgres when set | _(unset → SQLite)_ |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | Postgres connection | `localhost` / `5432` |
+| `SEED_ON_START` | Seed demo data on container boot (`1`/`0`) | `1` |
 
 ## Demo data
-
-To populate the catalog with sample books (covers downloaded from Open
-Library), a demo user and some orders — handy for screenshots:
 
 ```bash
 cd backend
 python manage.py seed          # add demo data (idempotent)
-python manage.py seed --flush  # wipe books & orders first, then reseed
+python manage.py seed --flush  # wipe books/orders/carts first, then reseed
 ```
 
-This creates a demo account — username `demo`, password `demopass123` — with a
-few orders already placed.
+Creates 12 books (covers from Open Library) and a demo account —
+username `demo`, password `demopass123` — with orders and a pre-filled cart.
 
-## Running Tests
+## Tests
 
 ```bash
-cd backend
-python manage.py test
+cd backend && python manage.py test     # backend (Django)
+cd frontend && pnpm run test            # frontend (Vitest)
 ```
+
+## REST API
+
+All endpoints are under `/api/`. Authentication is JWT via the
+`Authorization: Bearer <access>` header.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/books/?search=&page=` | Paginated / searchable book list |
+| GET | `/api/books/:id/` | Book detail |
+| POST | `/api/auth/register/` | Register → returns user + tokens |
+| POST | `/api/auth/token/` | Log in → access + refresh tokens |
+| POST | `/api/auth/token/refresh/` | Refresh an access token |
+| GET | `/api/auth/user/` | Current authenticated user |
+| GET | `/api/cart/` | Current user's cart |
+| POST | `/api/cart/items/` | Add a book to the cart |
+| PATCH | `/api/cart/items/:id/` | Update a cart item's quantity |
+| DELETE | `/api/cart/items/:id/` | Remove a cart item |
+| POST | `/api/cart/checkout/` | Convert the cart into an order |
+| GET | `/api/orders/` | Current user's orders |
+| GET | `/api/orders/:id/` | Order detail |
 
 ## Project Structure
 
 ```
 bookshop/
-├── backend/               # Django project: REST API + admin
-│   ├── bookshop/          # Project settings and root URL conf
-│   ├── main/               # Application: models, serializers, API views
-│   │   ├── migrations/     # Database migrations
-│   │   ├── models.py       # Book and Order models
-│   │   ├── serializers.py  # DRF serializers
-│   │   ├── views.py        # API views
-│   │   ├── urls.py         # /api/ routes
-│   │   ├── admin.py        # Admin configuration
-│   │   └── tests.py        # Test suite
-│   ├── manage.py
+├── backend/                    # Django project: REST API + admin
+│   ├── bookshop/               # Settings, root URLs, WSGI
+│   ├── main/
+│   │   ├── models.py           # Book, Cart, CartItem, Order, OrderItem
+│   │   ├── serializers.py      # DRF serializers
+│   │   ├── views.py            # API views (JWT auth, cart, checkout, orders)
+│   │   ├── urls.py             # /api/ routes
+│   │   ├── admin.py            # Admin config
+│   │   ├── tests.py            # Test suite
+│   │   └── management/commands/seed.py
+│   ├── Dockerfile
+│   ├── entrypoint.sh
 │   └── requirements.txt
-├── frontend/               # Vue 3 + Vite SPA
-│   └── src/
-│       ├── pages/          # Route views
-│       └── services/api.ts # REST API client
-├── scripts/
-│   ├── build-dev.sh        # Dev bootstrap script (Linux/macOS)
-│   └── build-dev.ps1       # Dev bootstrap script (Windows)
-└── LICENSE
+├── frontend/                   # Vue 3 + Vite SPA
+│   ├── src/
+│   │   ├── pages/              # Home, BookDetail, Cart, Orders, Login, Register
+│   │   ├── stores/session.ts   # Reactive auth + cart-count store
+│   │   └── services/api.ts     # Axios client with JWT interceptors
+│   ├── Dockerfile
+│   └── nginx.conf
+├── scripts/                    # build-dev.sh / build-dev.ps1
+├── docker-compose.yml
+└── .env.example
 ```
-
-## REST API
-
-All endpoints are served under `/api/`:
-
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/books/` | Paginated book list |
-| GET | `/api/books/:id/` | Book detail |
-| POST | `/api/register/` | Register a new user (auto-logs in) |
-| POST | `/api/login/` | Log in |
-| POST | `/api/logout/` | Log out |
-| GET | `/api/user/` | Current authenticated user |
-| GET | `/api/orders/` | Current user's orders |
-| POST | `/api/orders/` | Place an order |
-
-Authentication is session/cookie based. The Django admin remains at `/admin/`.
 
 ## License
 

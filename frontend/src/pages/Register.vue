@@ -63,14 +63,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { register } from '../services/api'
+import { extractApiError } from '../services/api'
+import { register } from '../stores/session'
 
 const router = useRouter()
-const form = ref({
-  username: '',
-  email: '',
-  password: '',
-})
+const form = ref({ username: '', email: '', password: '' })
 const loading = ref(false)
 const error = ref<string | null>(null)
 
@@ -79,10 +76,10 @@ const handleRegister = async () => {
   error.value = null
   try {
     await register(form.value.username, form.value.email, form.value.password)
-    router.push('/login')
-  } catch (err: any) {
-    error.value = err.response?.data?.detail || 'Registration failed. Please try again.'
-    console.error('[bookstore] Registration error:', err)
+    router.push('/')
+  } catch (err) {
+    error.value = extractApiError(err, 'Registration failed. Please try again.')
+    console.error('[verso] Registration error:', err)
   } finally {
     loading.value = false
   }

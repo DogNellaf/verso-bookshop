@@ -49,13 +49,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { login } from '../services/api'
+import { extractApiError } from '../services/api'
+import { login } from '../stores/session'
 
 const router = useRouter()
-const form = ref({
-  username: '',
-  password: '',
-})
+const form = ref({ username: '', password: '' })
 const loading = ref(false)
 const error = ref<string | null>(null)
 
@@ -65,9 +63,9 @@ const handleLogin = async () => {
   try {
     await login(form.value.username, form.value.password)
     router.push('/')
-  } catch (err: any) {
-    error.value = err.response?.data?.detail || 'Login failed. Please check your credentials.'
-    console.error('[bookstore] Login error:', err)
+  } catch (err) {
+    error.value = extractApiError(err, 'Login failed. Please check your credentials.')
+    console.error('[verso] Login error:', err)
   } finally {
     loading.value = false
   }

@@ -4,9 +4,7 @@
 
       <header class="orders-header">
         <h1 class="orders-header__title">My Orders</h1>
-        <p class="orders-header__subtitle">
-          {{ subtitle }}
-        </p>
+        <p class="orders-header__subtitle">{{ subtitle }}</p>
       </header>
 
       <div v-if="loading" class="state-msg">Loading orders…</div>
@@ -20,27 +18,39 @@
         <RouterLink to="/" class="btn btn-primary">Browse the catalog</RouterLink>
       </div>
 
-      <div v-else class="orders-list">
-        <div v-for="order in orders" :key="order.id" class="order-row">
-          <img
-            class="order-row__cover"
-            :src="coverSrc(order.book)"
-            :alt="`${order.book.title} cover`"
-            @error="onCoverError($event, order.book.title)"
-          />
-          <div class="order-row__info">
-            <p class="order-row__title">{{ order.book.title }}</p>
-            <p class="order-row__author">by {{ order.book.author }}</p>
-            <div class="order-row__meta">
-              <span class="order-row__meta-item">Qty: <strong>{{ order.quantity }}</strong></span>
-              <span class="order-row__meta-item">Ordered: <strong>{{ formatDate(order.created_at) }}</strong></span>
-              <span class="order-row__meta-item">Order #: <strong>{{ order.id }}</strong></span>
+      <div v-else>
+        <article v-for="order in orders" :key="order.id" class="order-card">
+          <div class="order-card__header">
+            <div>
+              <span class="order-card__id">Order #{{ order.id }}</span>
+              <p class="order-card__date">{{ formatDate(order.created_at) }}</p>
+            </div>
+            <div class="order-card__meta">
+              <span :class="`badge badge-${order.status}`">{{ order.status }}</span>
             </div>
           </div>
-          <span class="order-row__total">
-            ${{ (parseFloat(order.book.price) * order.quantity).toFixed(2) }}
-          </span>
-        </div>
+
+          <div class="order-card__lines">
+            <div v-for="item in order.items" :key="item.id" class="order-line">
+              <img
+                class="order-line__cover"
+                :src="coverSrc(item)"
+                :alt="`${item.title} cover`"
+                @error="onCoverError($event, item.title)"
+              />
+              <div class="order-line__info">
+                <p class="order-line__title">{{ item.title }}</p>
+                <p class="order-line__qty">${{ item.unit_price }} × {{ item.quantity }}</p>
+              </div>
+              <span class="order-line__subtotal">${{ item.subtotal }}</span>
+            </div>
+          </div>
+
+          <div class="order-card__total">
+            <span>Total</span>
+            ${{ order.total }}
+          </div>
+        </article>
       </div>
 
     </div>
@@ -50,7 +60,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { getOrders, type Book, type Order } from '../services/api'
+import { getOrders, type Order, type OrderItem } from '../services/api'
 
 const orders = ref<Order[]>([])
 const loading = ref(true)
@@ -64,32 +74,25 @@ const subtitle = computed(() => {
 })
 
 const placeholder = (title: string) =>
-  `https://placehold.co/64x96/e5e7eb/6b7280?text=${encodeURIComponent(title)}`
-
-const coverSrc = (bookItem: Book) => bookItem.cover || placeholder(bookItem.title)
-
+  `https://placehold.co/40x60/e5e7eb/6b7280?text=${encodeURIComponent(title)}`
+const coverSrc = (item: OrderItem) => item.book?.cover || placeholder(item.title)
 const onCoverError = (event: Event, title: string) => {
   (event.target as HTMLImageElement).src = placeholder(title)
 }
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
 }
 
 const fetchOrders = async () => {
   loading.value = true
   error.value = null
   try {
-    const response = await getOrders()
-    orders.value = response.data
+    orders.value = (await getOrders()).data
   } catch (err) {
     error.value = 'Failed to load orders. Please try again.'
-    console.error('[bookstore] Error fetching orders:', err)
+    console.error('[verso] Error fetching orders:', err)
   } finally {
     loading.value = false
   }
