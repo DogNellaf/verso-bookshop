@@ -142,6 +142,8 @@ class BookApiTest(APITestCase):
             make_book(title=f"Book {i:02d}")
         response = self.client.get(reverse("book-list"))
         self.assertIsNotNone(response.data["next"])
+        self.assertEqual(response.data["count"], 15)
+        self.assertEqual(response.data["total_pages"], 2)
 
     def test_write_methods_not_allowed(self):
         # Authenticate so we reach the method check (405) rather than 401.
