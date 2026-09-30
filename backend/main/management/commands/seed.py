@@ -25,7 +25,15 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from main.management.commands._translations import TRANSLATIONS
-from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
+from main.models import (
+    Book,
+    BookTranslation,
+    Cart,
+    CartItem,
+    ExchangeRate,
+    Order,
+    OrderItem,
+)
 
 BUNDLED_COVERS = Path(__file__).resolve().parents[2] / "fixtures" / "covers"
 
@@ -263,6 +271,9 @@ DEMO_CART = [
     ("Pride and Prejudice", 2),
 ]
 
+# Used until `update_exchange_rates` fetches real ones.
+DEFAULT_RATES = {"EUR": Decimal("0.92"), "RUB": Decimal("92.50")}
+
 COVER_URL = "https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg?default=false"
 
 
@@ -333,6 +344,9 @@ class Command(BaseCommand):
                 f"Books: {created} created, {updated} updated, {covers} cover(s) added."
             )
         )
+
+        for code, rate in DEFAULT_RATES.items():
+            ExchangeRate.objects.get_or_create(currency=code, defaults={"rate": rate})
 
         self._seed_demo_user_and_orders(books_by_title)
 

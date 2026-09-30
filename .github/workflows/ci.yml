@@ -9,6 +9,30 @@ on:
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
+    # SQLite is the development default, PostgreSQL is what runs in Docker and
+    # the only database with full-text search. Test on both.
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: bookshop
+          POSTGRES_USER: bookshop
+          POSTGRES_PASSWORD: bookshop
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U bookshop"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      POSTGRES_DB: ${{ matrix.database == 'postgres' && 'bookshop' || '' }}
+      POSTGRES_USER: bookshop
+      POSTGRES_PASSWORD: bookshop
+      POSTGRES_HOST: 127.0.0.1
     defaults:
       run:
         working-directory: backend
@@ -44,7 +68,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          coverage run manage.py test
+          coverage run manage.py test --noinput
           coverage report --fail-under=90
 
   frontend-tests:

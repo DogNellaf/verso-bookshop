@@ -1,8 +1,12 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.utils.translation import get_language
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from main import currency
 from main.models import Book, Cart, CartItem, Order, OrderItem
 
 TRANSLATED_FIELDS = ("title", "author", "description")
@@ -25,6 +29,9 @@ def translation_for(book, language=None):
 
 class BookSerializer(serializers.ModelSerializer):
     in_stock = serializers.BooleanField(read_only=True)
+    # Price in the requested currency (see main.currency).
+    price = serializers.SerializerMethodField()
+    currency = serializers.SerializerMethodField()
     # Return a relative URL (e.g. /media/covers/x.jpg) so the same value works
     # behind the Vite dev proxy and the production nginx reverse proxy without
     # depending on the request's host/port.
@@ -32,7 +39,24 @@ class BookSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Book
-        fields = ["id", "title", "author", "description", "price", "stock", "cover", "in_stock"]
+        fields = [
+            "id",
+            "title",
+            "author",
+            "description",
+            "price",
+            "currency",
+            "stock",
+            "cover",
+            "in_stock",
+        ]
+
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
+    def get_price(self, obj):
+        return str(currency.convert(obj.price, currency.effective_currency()))
+
+    def get_currency(self, obj) -> str:
+        return currency.effective_currency()
 
     def get_cover(self, obj) -> str:
         return obj.cover.url if obj.cover else ""
@@ -74,23 +98,44 @@ class RegisterSerializer(serializers.ModelSerializer):
 # ---- Cart ----
 
 
+def converted_unit_price(book):
+    return currency.convert(book.price, currency.effective_currency())
+
+
 class CartItemSerializer(serializers.ModelSerializer):
     book = BookSerializer(read_only=True)
-    subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    subtotal = serializers.SerializerMethodField()
 
     class Meta:
         model = CartItem
         fields = ["id", "book", "quantity", "subtotal"]
 
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
+    def get_subtotal(self, obj):
+        return str(converted_unit_price(obj.book) * obj.quantity)
+
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
-    total_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total_price = serializers.SerializerMethodField()
     total_quantity = serializers.IntegerField(read_only=True)
+    currency = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
-        fields = ["id", "items", "total_price", "total_quantity"]
+        fields = ["id", "items", "total_price", "total_quantity", "currency"]
+
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
+    def get_total_price(self, obj):
+        # Sum rounded line totals so the total matches what the lines show.
+        total = sum(
+            (converted_unit_price(item.book) * item.quantity for item in obj.items.all()),
+            Decimal("0.00"),
+        )
+        return str(total)
+
+    def get_currency(self, obj) -> str:
+        return currency.effective_currency()
 
 
 class AddCartItemSerializer(serializers.Serializer):
@@ -120,4 +165,4 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ["id", "status", "total", "item_count", "created_at", "items"]
+        fields = ["id", "status", "total", "currency", "item_count", "created_at", "items"]

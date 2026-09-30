@@ -2,6 +2,7 @@ import decimal
 
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import MinValueValidator
 from django.db import models
 
@@ -18,6 +19,10 @@ class Book(models.Model):
     )
     stock = models.PositiveIntegerField(default=0, verbose_name="Stock")
     cover = models.ImageField(upload_to="covers/", blank=True, null=True, verbose_name="Cover")
+    # Maintained by main.search. Titles and authors in every language, and on
+    # PostgreSQL a full-text vector of the book and its translations.
+    search_text = models.TextField(blank=True, default="", editable=False)
+    search_document = SearchVectorField(null=True, editable=False)
 
     class Meta:
         verbose_name = "Book"
@@ -64,6 +69,43 @@ class BookTranslation(models.Model):
 
     def __str__(self):
         return f"{self.book.title} [{self.language}]"
+
+
+class ExchangeRate(models.Model):
+    """How many units of a currency one US dollar buys.
+
+    Catalog prices are stored in US dollars and converted on the fly.
+    """
+
+    currency = models.CharField(max_length=3, primary_key=True, verbose_name="Currency")
+    rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=6,
+        validators=[MinValueValidator(decimal.Decimal("0.000001"))],
+        verbose_name="Units per 1 USD",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated at")
+
+    class Meta:
+        verbose_name = "Exchange rate"
+        verbose_name_plural = "Exchange rates"
+        ordering = ["currency"]
+
+    def __str__(self):
+        return f"1 USD = {self.rate} {self.currency}"
+
+    def save(self, *args, **kwargs):
+        from main.currency import clear_rates_cache
+
+        super().save(*args, **kwargs)
+        clear_rates_cache()
+
+    def delete(self, *args, **kwargs):
+        from main.currency import clear_rates_cache
+
+        result = super().delete(*args, **kwargs)
+        clear_rates_cache()
+        return result
 
 
 class Cart(models.Model):
@@ -147,11 +189,13 @@ class Order(models.Model):
         verbose_name="Status",
     )
     total = models.DecimalField(
-        max_digits=10,
+        max_digits=12,
         decimal_places=2,
         default=decimal.Decimal("0.00"),
         verbose_name="Total",
     )
+    # Prices of an order are fixed in the currency the customer paid in.
+    currency = models.CharField(max_length=3, default="USD", verbose_name="Currency")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
 
     class Meta:
@@ -190,7 +234,7 @@ class OrderItem(models.Model):
     # Snapshot of the book's title and price at purchase time so order history
     # stays accurate even if the book is later edited or deleted.
     title = models.CharField(max_length=255, verbose_name="Title")
-    unit_price = models.DecimalField(max_digits=8, decimal_places=2, verbose_name="Unit price")
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Unit price")
     quantity = models.PositiveIntegerField(default=1, verbose_name="Quantity")
 
     class Meta:
@@ -204,3 +248,45 @@ class OrderItem(models.Model):
     @property
     def subtotal(self):
         return self.unit_price * self.quantity
+
+
+class Payment(models.Model):
+    """One attempt to pay for an order through a payment provider."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="payments",
+        verbose_name="Order",
+    )
+    provider = models.CharField(max_length=20, verbose_name="Provider")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name="Status",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Amount")
+    currency = models.CharField(max_length=3, verbose_name="Currency")
+    # Session or charge id at the provider, e.g. a Stripe Checkout Session id.
+    external_id = models.CharField(max_length=255, blank=True, db_index=True)
+    redirect_url = models.URLField(max_length=1000, blank=True)
+    failure_reason = models.CharField(max_length=255, blank=True)
+    # Set when money arrived for an order that was cancelled in the meantime.
+    needs_refund = models.BooleanField(default=False, verbose_name="Needs refund")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated at")
+
+    class Meta:
+        verbose_name = "Payment"
+        verbose_name_plural = "Payments"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Payment #{self.pk} for order #{self.order_id} ({self.status})"

@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Verso 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 17:07+0000\n"
+"POT-Creation-Date: 2026-09-30 18:14+0000\n"
 "PO-Revision-Date: 2026-09-30 17:10+0000\n"
 "Last-Translator: Verso team\n"
 "Language-Team: Verso team\n"
@@ -14,26 +14,45 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-#: main/views.py:30
+msgid "Only pending orders can be paid."
+msgstr "Seules les commandes en attente peuvent être payées."
+
+msgid "This payment is already finished."
+msgstr "Ce paiement est déjà terminé."
+
+msgid "The card number is not valid."
+msgstr "Le numéro de carte n'est pas valide."
+
+msgid "Enter the expiry date as MM/YY."
+msgstr "Indiquez la date d'expiration au format MM/AA."
+
+msgid "The card has expired."
+msgstr "La carte a expiré."
+
+msgid "Enter the 3 or 4 digit security code."
+msgstr "Saisissez le code de sécurité à 3 ou 4 chiffres."
+
+msgid "Your card was declined."
+msgstr "Votre carte a été refusée."
+
+msgid "Your card has insufficient funds."
+msgstr "Le solde de votre carte est insuffisant."
+
 #, python-format
 msgid "“%(title)s” is out of stock."
 msgstr "« %(title)s » est en rupture de stock."
 
-#: main/views.py:32
 #, python-format
 msgid "Only %(count)d copy of “%(title)s” is in stock."
 msgid_plural "Only %(count)d copies of “%(title)s” are in stock."
 msgstr[0] "Il ne reste que %(count)d exemplaire de « %(title)s »."
 msgstr[1] "Il ne reste que %(count)d exemplaires de « %(title)s »."
 
-#: main/views.py:208
 msgid "Your cart is empty."
 msgstr "Votre panier est vide."
 
-#: main/views.py:222
 msgid "Not enough stock."
 msgstr "Stock insuffisant."
 
-#: main/views.py:284
 msgid "Only pending orders can be cancelled."
 msgstr "Seules les commandes en attente peuvent être annulées."

@@ -2,6 +2,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers as default_cors_headers
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get(
@@ -25,7 +27,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.postgres",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "django_filters",
     "corsheaders",
     "drf_spectacular",
@@ -41,6 +45,7 @@ MIDDLEWARE = [
     # Picks the language from the SPA's Accept-Language header (the UI sends
     # the user's chosen language, not the browser default).
     "django.middleware.locale.LocaleMiddleware",
+    "main.currency.CurrencyMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -104,6 +109,23 @@ LANGUAGES = [
     ("de", "Deutsch"),
 ]
 LOCALE_PATHS = [BASE_DIR / "locale"]
+
+# Machine translation of new books (DeepL). Without a key, translations are
+# added by hand in the admin.
+DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY", "")
+AUTO_TRANSLATE_BOOKS = os.environ.get("AUTO_TRANSLATE_BOOKS", "True") == "True"
+
+# Payments. "demo" accepts test cards without real money, "stripe" uses
+# Stripe Checkout and needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.
+PAYMENT_PROVIDER = os.environ.get("PAYMENT_PROVIDER", "demo")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# Public address of the site, used for links back from the payment page.
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080").rstrip("/")
+
+# Catalog prices are stored in USD and converted with ExchangeRate rows.
+CURRENCIES = ["USD", "EUR", "RUB"]
+EXCHANGE_RATES_URL = os.environ.get("EXCHANGE_RATES_URL", "https://open.er-api.com/v6/latest/USD")
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
@@ -128,7 +150,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "main.authentication.CookieJWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticatedOrReadOnly",
@@ -172,7 +194,15 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
     "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": True,
 }
+
+# JWT cookies get the Secure flag when the site runs over HTTPS.
+AUTH_COOKIE_SECURE = os.environ.get("HTTPS", "False") == "True"
+
+CORS_ALLOW_HEADERS = [*default_cors_headers, "x-currency"]
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     o

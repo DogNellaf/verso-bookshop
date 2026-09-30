@@ -10,19 +10,18 @@ from rest_framework import filters, generics, permissions, serializers, status, 
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
+from main import currency
 from main.filters import BookFilter
 from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
+from main.payments.services import cancel_pending_payments
+from main.search import BookSearchFilter
 from main.serializers import (
     AddCartItemSerializer,
     BookSerializer,
     CartSerializer,
     OrderSerializer,
-    RegisterSerializer,
     UpdateCartItemSerializer,
-    UserSerializer,
     current_language,
 )
 
@@ -35,11 +34,6 @@ def stock_message(book):
         "Only %(count)d copies of “%(title)s” are in stock.",
         book.stock,
     ) % {"count": book.stock, "title": book.title}
-
-
-def tokens_for(user):
-    refresh = RefreshToken.for_user(user)
-    return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
 # ---- Books ----
@@ -61,10 +55,10 @@ class LocalizedOrderingFilter(filters.OrderingFilter):
 
 class BookViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BookSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, LocalizedOrderingFilter]
+    # The search filter runs last so it can order by relevance when no
+    # explicit ordering was asked for.
+    filter_backends = [DjangoFilterBackend, LocalizedOrderingFilter, BookSearchFilter]
     filterset_class = BookFilter
-    # Searching matches the original and every translation of title/author.
-    search_fields = ["title", "author", "translations__title", "translations__author"]
     ordering_fields = ["title", "author", "price"]
     ordering = ["title"]
 
@@ -98,52 +92,6 @@ class HealthView(APIView):
     def get(self, request):
         connection.ensure_connection()
         return Response({"status": "ok"})
-
-
-# ---- Auth ----
-
-
-class ThrottledTokenObtainPairView(TokenObtainPairView):
-    throttle_scope = "auth"
-
-
-class ThrottledTokenRefreshView(TokenRefreshView):
-    throttle_scope = "auth"
-
-
-class RegisterView(APIView):
-    permission_classes = [permissions.AllowAny]
-    throttle_scope = "auth"
-
-    @extend_schema(
-        request=RegisterSerializer,
-        responses={
-            201: inline_serializer(
-                "RegisterResponse",
-                {
-                    "user": UserSerializer(),
-                    "access": serializers.CharField(),
-                    "refresh": serializers.CharField(),
-                },
-            )
-        },
-    )
-    def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response(
-            {"user": UserSerializer(user).data, **tokens_for(user)},
-            status=status.HTTP_201_CREATED,
-        )
-
-
-class CurrentUserView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    @extend_schema(responses=UserSerializer)
-    def get(self, request):
-        return Response(UserSerializer(request.user).data)
 
 
 # ---- Cart ----
@@ -250,7 +198,10 @@ class CheckoutView(APIView):
             if errors:
                 raise ValidationError({"detail": _("Not enough stock."), "items": errors})
 
-            order = Order.objects.create(buyer=request.user, status=Order.Status.PENDING)
+            order_currency = currency.effective_currency()
+            order = Order.objects.create(
+                buyer=request.user, status=Order.Status.PENDING, currency=order_currency
+            )
             order_items = []
             for item in items:
                 book = stock[item.book_id]
@@ -259,7 +210,7 @@ class CheckoutView(APIView):
                         order=order,
                         book=book,
                         title=book.title,
-                        unit_price=book.price,
+                        unit_price=currency.convert(book.price, order_currency),
                         quantity=item.quantity,
                     )
                 )
@@ -325,5 +276,6 @@ class OrderCancelView(APIView):
 
             order.status = Order.Status.CANCELLED
             order.save(update_fields=["status"])
+            cancel_pending_payments(order)
 
         return Response(OrderSerializer(user_orders(request.user).get(pk=order.pk)).data)

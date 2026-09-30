@@ -18,6 +18,11 @@ if [ "$SEED_ON_START" = "1" ]; then
   python manage.py seed || true
 fi
 
+# Refresh exchange rates. The seeded defaults stay if the feed is unreachable.
+if [ "$UPDATE_RATES_ON_START" = "1" ]; then
+  python manage.py update_exchange_rates || echo "Keeping the stored exchange rates."
+fi
+
 # Optionally create an admin account (DJANGO_SUPERUSER_USERNAME / _EMAIL /
 # _PASSWORD). Ignored if the user already exists.
 if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then

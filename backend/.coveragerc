@@ -2,7 +2,7 @@
 source = main, bookshop
 omit =
     */migrations/*
-    main/tests.py
+    main/tests/*
     bookshop/asgi.py
     bookshop/wsgi.py
 

@@ -2,57 +2,19 @@ import tempfile
 from decimal import Decimal
 from io import StringIO
 
-from django.contrib.auth.models import User
-from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase as BaseAPITestCase
 
 from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def make_book(**kwargs):
-    defaults = dict(
-        title="Test Book",
-        author="Test Author",
-        description="Some description.",
-        price=Decimal("29.99"),
-        stock=10,
-    )
-    defaults.update(kwargs)
-    return Book.objects.create(**defaults)
-
-
-def make_user(username="testuser", password="testpass123"):
-    return User.objects.create_user(username, password=password)
-
-
-class APITestCase(BaseAPITestCase):
-    """Resets the throttle counters (stored in the cache) between tests."""
-
-    def setUp(self):
-        cache.clear()
-
-
-class AuthedAPITestCase(APITestCase):
-    """APITestCase that authenticates a user via JWT."""
-
-    def setUp(self):
-        super().setUp()
-        self.user = make_user()
-        self.authenticate(self.user)
-
-    def authenticate(self, user):
-        from rest_framework_simplejwt.tokens import RefreshToken
-
-        token = RefreshToken.for_user(user).access_token
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-
+from main.tests.helpers import (
+    APITestCase,
+    AuthedAPITestCase,
+    authenticate,
+    make_book,
+    make_user,
+    sign_out,
+)
 
 # ---------------------------------------------------------------------------
 # Model tests
@@ -149,10 +111,7 @@ class BookApiTest(APITestCase):
 
     def test_write_methods_not_allowed(self):
         # Authenticate so we reach the method check (405) rather than 401.
-        from rest_framework_simplejwt.tokens import RefreshToken
-
-        token = RefreshToken.for_user(make_user()).access_token
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+        authenticate(self.client, make_user())
         book = make_book()
         self.assertEqual(
             self.client.post(reverse("book-list"), {"title": "Hack"}).status_code,
@@ -162,66 +121,6 @@ class BookApiTest(APITestCase):
             self.client.delete(reverse("book-detail", args=[book.pk])).status_code,
             status.HTTP_405_METHOD_NOT_ALLOWED,
         )
-
-
-# ---------------------------------------------------------------------------
-# API tests (auth (JWT))
-# ---------------------------------------------------------------------------
-
-
-class AuthApiTest(APITestCase):
-    def test_register_returns_tokens(self):
-        response = self.client.post(
-            reverse("api_register"),
-            {
-                "username": "newuser",
-                "email": "new@example.com",
-                "password": "SecurePass!99",
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn("access", response.data)
-        self.assertIn("refresh", response.data)
-        self.assertTrue(User.objects.filter(username="newuser").exists())
-
-    def test_register_rejects_weak_password(self):
-        response = self.client.post(
-            reverse("api_register"),
-            {
-                "username": "weakuser",
-                "email": "w@example.com",
-                "password": "123",
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(User.objects.filter(username="weakuser").exists())
-
-    def test_token_obtain(self):
-        make_user()
-        response = self.client.post(
-            reverse("api_token"),
-            {
-                "username": "testuser",
-                "password": "testpass123",
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("access", response.data)
-
-    def test_current_user_requires_auth(self):
-        self.assertEqual(
-            self.client.get(reverse("api_current_user")).status_code,
-            status.HTTP_401_UNAUTHORIZED,
-        )
-
-    def test_current_user_with_token(self):
-        user = make_user()
-        from rest_framework_simplejwt.tokens import RefreshToken
-
-        token = RefreshToken.for_user(user).access_token
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
-        response = self.client.get(reverse("api_current_user"))
-        self.assertEqual(response.data["username"], "testuser")
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +175,7 @@ class CartApiTest(AuthedAPITestCase):
         self.assertEqual(response.data["items"], [])
 
     def test_cart_requires_auth(self):
-        self.client.credentials()  # drop token
+        sign_out(self.client)
         self.assertEqual(
             self.client.get(reverse("api_cart")).status_code, status.HTTP_401_UNAUTHORIZED
         )
@@ -440,9 +339,9 @@ class CartQueryCountTest(AuthedAPITestCase):
         cart = Cart.objects.create(buyer=self.user)
         for i in range(5):
             CartItem.objects.create(cart=cart, book=make_book(title=f"B{i}"), quantity=1)
-        # user, cart, items+books in one JOIN, book translations. Independent
-        # of the item count.
-        with self.assertNumQueries(4):
+        # User, cart, items and books in one JOIN, book translations and the
+        # exchange rates (cached afterwards). Independent of the item count.
+        with self.assertNumQueries(5):
             response = self.client.get(reverse("api_cart"))
         self.assertEqual(len(response.data["items"]), 5)
 
@@ -477,7 +376,7 @@ class ThrottleTest(APITestCase):
         ScopedRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
         try:
             payload = {"username": "nobody", "password": "wrong"}
-            codes = [self.client.post(reverse("api_token"), payload).status_code for _ in range(3)]
+            codes = [self.client.post(reverse("api_login"), payload).status_code for _ in range(3)]
             self.assertEqual(codes[:2], [401, 401])
             self.assertEqual(codes[2], status.HTTP_429_TOO_MANY_REQUESTS)
         finally:
