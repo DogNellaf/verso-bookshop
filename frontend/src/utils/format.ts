@@ -1,3 +1,4 @@
+import { currentCurrency } from '../currency'
 import { currentLocale } from '../i18n'
 
 const cache = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat>()
@@ -7,11 +8,14 @@ const cached = <T extends Intl.NumberFormat | Intl.DateTimeFormat>(key: string, 
   return cache.get(key) as T
 }
 
-/** Format a DRF decimal string (e.g. "12.50") as a USD amount in the UI language. */
-export const formatPrice = (value: string | number) => {
+/**
+ * Format a DRF decimal string such as "12.50" in the UI language. Pass the
+ * currency the API returned the amount in; it defaults to the chosen one.
+ */
+export const formatPrice = (value: string | number, currency: string = currentCurrency()) => {
   const locale = currentLocale()
-  return cached(`price:${locale}`, () =>
-    new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD' }),
+  return cached(`price:${locale}:${currency}`, () =>
+    new Intl.NumberFormat(locale, { style: 'currency', currency }),
   ).format(Number(value))
 }
 

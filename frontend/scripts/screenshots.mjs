@@ -79,6 +79,16 @@ try {
 
       await page.goto(`${BASE_URL}/orders`)
       await shoot(page, 'orders', { fullPage: true })
+
+      // The demo user has one pending order, show its payment page.
+      const pendingId = await page.evaluate(async () => {
+        const orders = await fetch('/api/orders/').then((r) => r.json())
+        return orders.find((o) => o.status === 'pending')?.id
+      })
+      if (pendingId) {
+        await page.goto(`${BASE_URL}/orders/${pendingId}/pay`)
+        await shoot(page, 'payment')
+      }
     })
 
     await withContext(browser, desktop, 'dark', locale, async (page) => {

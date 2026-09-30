@@ -30,7 +30,7 @@
           <h1 class="book-detail__title">{{ book.title }}</h1>
           <p class="book-detail__author">{{ t('common.by', { author: book.author }) }}</p>
 
-          <p class="book-detail__price">{{ formatPrice(book.price) }}</p>
+          <p class="book-detail__price">{{ formatPrice(book.price, book.currency) }}</p>
 
           <div class="book-detail__badge">
             <StockBadge :stock="book.stock" />

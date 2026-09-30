@@ -37,7 +37,7 @@
               <RouterLink :to="`/book/${item.book.id}`" class="cart-item__title">{{ item.book.title }}</RouterLink>
               <p class="cart-item__author">{{ t('common.by', { author: item.book.author }) }}</p>
               <p class="cart-item__price">
-                {{ t('cart.each', { price: formatPrice(item.book.price) }) }}
+                {{ t('cart.each', { price: formatPrice(item.book.price, cart.currency) }) }}
                 <span v-if="item.quantity > item.book.stock" class="cart-item__warning">
                   · {{ t('cart.onlyLeft', { n: item.book.stock }) }}
                 </span>
@@ -61,7 +61,7 @@
                   @click="changeQuantity(item, item.quantity + 1)"
                 >+</button>
               </div>
-              <span class="cart-item__subtotal">{{ formatPrice(item.subtotal) }}</span>
+              <span class="cart-item__subtotal">{{ formatPrice(item.subtotal, cart.currency) }}</span>
               <button
                 class="cart-item__remove"
                 type="button"
@@ -85,7 +85,7 @@
           </div>
           <div class="cart-summary__total">
             <span>{{ t('cart.total') }}</span>
-            <span>{{ formatPrice(cart.total_price) }}</span>
+            <span>{{ formatPrice(cart.total_price, cart.currency) }}</span>
           </div>
           <button class="btn btn-primary btn-lg" type="button" :disabled="busy" @click="checkoutHandler">
             {{ busy ? t('cart.processing') : t('cart.checkout') }}
@@ -172,7 +172,7 @@ const checkoutHandler = async () => {
   try {
     const { data: order } = await checkout()
     setCartCount(0)
-    router.push({ path: '/orders', query: { placed: String(order.id) } })
+    router.push(`/orders/${order.id}/pay`)
   } catch (err) {
     error.value = extractApiError(err, t('cart.checkoutError'))
     // Stock may have changed under us, show the up-to-date cart.

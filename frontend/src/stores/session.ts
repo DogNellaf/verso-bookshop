@@ -15,7 +15,8 @@ export const session = reactive<SessionState>({
 })
 
 export async function refreshUser() {
-  if (!api.getAccessToken()) {
+  // Anonymous visitors have no session cookie, so skip the request entirely.
+  if (!api.hasSession()) {
     session.user = null
     return
   }
@@ -43,24 +44,25 @@ export function setCartCount(count: number) {
 }
 
 export async function login(username: string, password: string) {
-  await api.login(username, password)
-  await refreshUser()
+  session.user = (await api.login(username, password)).data
   await refreshCart()
 }
 
 export async function register(username: string, email: string, password: string) {
-  await api.register(username, email, password)
-  await refreshUser()
+  session.user = (await api.register(username, email, password)).data
   await refreshCart()
 }
 
-export function logout() {
-  api.clearTokens()
-  session.user = null
-  session.cartCount = 0
+export async function logout() {
+  try {
+    await api.logout()
+  } finally {
+    session.user = null
+    session.cartCount = 0
+  }
 }
 
-// Resolve the logged-in user once; route guards and the app shell share
+// Resolve the signed-in user once; route guards and the app shell share
 // the same promise so the /api/auth/user/ call isn't repeated.
 let initPromise: Promise<void> | null = null
 

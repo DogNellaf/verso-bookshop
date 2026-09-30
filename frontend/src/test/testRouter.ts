@@ -12,6 +12,7 @@ export async function createTestRouter(initialRoute = '/') {
       { path: '/login', component: Blank },
       { path: '/cart', component: Blank },
       { path: '/orders', component: Blank },
+      { path: '/orders/:id/pay', component: Blank },
     ],
   })
   router.push(initialRoute)

@@ -66,7 +66,7 @@ describe('Cart.vue', () => {
     expect(wrapper.text()).toContain('Your cart is empty')
   })
 
-  it('checks out and redirects to orders', async () => {
+  it('checks out and goes to the payment page', async () => {
     mockGetCart.mockResolvedValue({ data: cartData })
     mockCheckout.mockResolvedValue({ data: { id: 99 } })
     const router = await createTestRouter('/cart')
@@ -79,7 +79,7 @@ describe('Cart.vue', () => {
     await flushPromises()
 
     expect(mockCheckout).toHaveBeenCalled()
-    expect(pushSpy).toHaveBeenCalledWith({ path: '/orders', query: { placed: '99' } })
+    expect(pushSpy).toHaveBeenCalledWith('/orders/99/pay')
   })
 
   it('keeps the cart and shows the error when checkout fails', async () => {

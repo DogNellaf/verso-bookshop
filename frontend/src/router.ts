@@ -21,6 +21,7 @@ export const routes: RouteRecordRaw[] = [
   { path: '/register', component: () => import('./pages/Register.vue'), meta: { titleKey: 'titles.register', guestOnly: true } },
   { path: '/cart', component: () => import('./pages/Cart.vue'), meta: { titleKey: 'titles.cart', requiresAuth: true } },
   { path: '/orders', component: () => import('./pages/Orders.vue'), meta: { titleKey: 'titles.orders', requiresAuth: true } },
+  { path: '/orders/:id(\\d+)/pay', component: () => import('./pages/Payment.vue'), meta: { titleKey: 'titles.payment', requiresAuth: true } },
   { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue'), meta: { titleKey: 'titles.notFound' } },
 ]
 

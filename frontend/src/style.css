@@ -1177,3 +1177,29 @@ a.order-line__title:hover { color: var(--bs-accent); }
 }
 
 .locale-select:focus-visible { outline: none; box-shadow: var(--bs-focus); }
+
+/* ---- Payment ---- */
+.bs-container--narrow { max-width: 640px; }
+
+.payment-card {
+  background-color: var(--bs-surface);
+  border: 1px solid var(--bs-border);
+  border-radius: var(--bs-radius);
+  box-shadow: var(--bs-shadow-sm);
+  padding: 1.5rem;
+}
+
+.payment-card__text { margin: 0 0 1.25rem; color: var(--bs-muted-fg); line-height: 1.6; }
+.payment-card__submit { width: 100%; margin-top: .5rem; }
+.payment-card__hint { margin: 1.5rem 0 0; }
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+.form-error { margin: 0; font-size: .8rem; color: var(--bs-danger-fg); }
+.form-input[aria-invalid="true"] { border-color: var(--bs-destructive); }
+
+.test-cards { list-style: none; margin: .35rem 0 0; padding: 0; font-size: .82rem; color: var(--bs-muted-fg); }
+.test-cards li { display: flex; gap: .75rem; align-items: baseline; padding: .15rem 0; }
+.test-cards .link-btn { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; text-decoration: none; }
+
+.order-card__actions { display: flex; gap: .5rem; flex-wrap: wrap; }

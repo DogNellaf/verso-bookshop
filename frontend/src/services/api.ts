@@ -1,74 +1,89 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { currentCurrency } from '../currency'
 import { currentLocale } from '../i18n'
 
 // Relative base URL so requests go through the Vite dev proxy (or nginx in
 // production) to the backend on the same origin. Override for other setups.
 const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
-const ACCESS_KEY = 'verso_access'
-const REFRESH_KEY = 'verso_refresh'
+// Auth tokens live in httpOnly cookies set by the backend, so JavaScript never
+// sees them. The SPA only reads two harmless cookies, the CSRF token it has to
+// echo back and a hint that a session exists.
+const CSRF_COOKIE = 'csrftoken'
+const SESSION_HINT_COOKIE = 'verso_session'
+const UNSAFE_METHODS = ['post', 'put', 'patch', 'delete']
 
-export const getAccessToken = () => localStorage.getItem(ACCESS_KEY)
-export const getRefreshToken = () => localStorage.getItem(REFRESH_KEY)
-
-export const setTokens = (access: string, refresh?: string) => {
-  localStorage.setItem(ACCESS_KEY, access)
-  if (refresh) localStorage.setItem(REFRESH_KEY, refresh)
+export const readCookie = (name: string): string | null => {
+  const match = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`))
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null
 }
 
-export const clearTokens = () => {
-  localStorage.removeItem(ACCESS_KEY)
-  localStorage.removeItem(REFRESH_KEY)
+/** True when the backend has signed this browser in (the session may still be expired). */
+export const hasSession = () => readCookie(SESSION_HINT_COOKIE) === '1'
+
+const api = axios.create({ baseURL: API_BASE, withCredentials: true })
+
+let csrfReady: Promise<unknown> | null = null
+/** Make sure the csrftoken cookie exists before the first unsafe request. */
+export const ensureCsrf = () => {
+  if (readCookie(CSRF_COOKIE)) return Promise.resolve()
+  csrfReady ??= axios
+    .get(`${API_BASE}/api/auth/csrf/`, { withCredentials: true })
+    .finally(() => {
+      csrfReady = null
+    })
+  return csrfReady
 }
 
-const api = axios.create({ baseURL: API_BASE })
-
-// Called when the session can't be recovered (refresh token expired/invalid),
-// so the UI can drop the logged-in state.
+// Called when the session can't be recovered (refresh token expired or
+// revoked), so the UI can drop the signed-in state.
 let authLostHandler: (() => void) | null = null
 export const onAuthLost = (handler: () => void) => {
   authLostHandler = handler
 }
 
 // Share one in-flight refresh between concurrent 401s so parallel requests
-// don't race each other with the same (rotating) refresh token.
-let refreshing: Promise<string> | null = null
-const refreshAccessToken = () => {
-  refreshing ??= axios
-    .post(`${API_BASE}/api/auth/token/refresh/`, { refresh: getRefreshToken() })
-    .then(({ data }) => {
-      setTokens(data.access, data.refresh)
-      return data.access as string
-    })
+// don't race each other with the same rotating refresh token.
+let refreshing: Promise<unknown> | null = null
+const refreshSession = () => {
+  refreshing ??= ensureCsrf()
+    .then(() =>
+      axios.post(`${API_BASE}/api/auth/refresh/`, null, {
+        withCredentials: true,
+        headers: { 'X-CSRFToken': readCookie(CSRF_COOKIE) ?? '' },
+      }),
+    )
     .finally(() => {
       refreshing = null
     })
   return refreshing
 }
 
-// Attach the bearer token and the UI language (so API errors come back
-// translated) to every request.
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+// Send the UI language (so API errors come back translated) and, for unsafe
+// methods, the CSRF token.
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   config.headers['Accept-Language'] = currentLocale()
-  const token = getAccessToken()
-  if (token) config.headers.Authorization = `Bearer ${token}`
+  config.headers['X-Currency'] = currentCurrency()
+  if (UNSAFE_METHODS.includes((config.method ?? 'get').toLowerCase())) {
+    await ensureCsrf()
+    const token = readCookie(CSRF_COOKIE)
+    if (token) config.headers['X-CSRFToken'] = token
+  }
   return config
 })
 
-// On a 401, try to refresh the access token once, then retry the request.
+// On a 401, refresh the session once, then retry the request.
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
-    const isAuthCall = original?.url?.includes('/api/auth/token')
-    if (error.response?.status === 401 && !original._retry && !isAuthCall && getRefreshToken()) {
+    const isAuthCall = /\/api\/auth\/(login|refresh|logout|register)\//.test(original?.url ?? '')
+    if (error.response?.status === 401 && original && !original._retry && !isAuthCall && hasSession()) {
       original._retry = true
       try {
-        const access = await refreshAccessToken()
-        original.headers.Authorization = `Bearer ${access}`
+        await refreshSession()
         return api(original)
       } catch (refreshError) {
-        clearTokens()
         authLostHandler?.()
         return Promise.reject(refreshError)
       }
@@ -85,6 +100,7 @@ export interface Book {
   author: string
   description: string
   price: string
+  currency: string
   stock: number
   cover: string
   in_stock: boolean
@@ -108,6 +124,7 @@ export interface Cart {
   items: CartItem[]
   total_price: string
   total_quantity: number
+  currency: string
 }
 
 export interface OrderItem {
@@ -125,6 +142,7 @@ export interface Order {
   id: number
   status: OrderStatus
   total: string
+  currency: string
   item_count: number
   created_at: string
   items: OrderItem[]
@@ -161,17 +179,13 @@ export const getBook = (id: number) => api.get<Book>(`/api/books/${id}/`)
 
 // ---- Auth ----
 
-export const login = async (username: string, password: string) => {
-  const { data } = await api.post('/api/auth/token/', { username, password })
-  setTokens(data.access, data.refresh)
-  return data
-}
+export const login = (username: string, password: string) =>
+  api.post<User>('/api/auth/login/', { username, password })
 
-export const register = async (username: string, email: string, password: string) => {
-  const { data } = await api.post('/api/auth/register/', { username, email, password })
-  setTokens(data.access, data.refresh)
-  return data
-}
+export const register = (username: string, email: string, password: string) =>
+  api.post<User>('/api/auth/register/', { username, email, password })
+
+export const logout = () => api.post('/api/auth/logout/')
 
 export const getCurrentUser = () => api.get<User>('/api/auth/user/')
 
@@ -197,6 +211,38 @@ export const getOrders = () => api.get<Order[]>('/api/orders/')
 export const getOrder = (id: number) => api.get<Order>(`/api/orders/${id}/`)
 
 export const cancelOrder = (id: number) => api.post<Order>(`/api/orders/${id}/cancel/`)
+
+// ---- Payments ----
+
+export type PaymentProvider = 'demo' | 'stripe'
+export type PaymentStatus = 'pending' | 'succeeded' | 'failed' | 'cancelled'
+
+export interface Payment {
+  id: number
+  order: number
+  provider: PaymentProvider
+  status: PaymentStatus
+  amount: string
+  currency: string
+  redirect_url: string
+  failure_reason: string
+  created_at: string
+}
+
+export interface Card {
+  card_number: string
+  expiry: string
+  cvc: string
+}
+
+export const getPaymentConfig = () =>
+  api.get<{ provider: PaymentProvider }>('/api/payments/config/')
+
+export const startPayment = (orderId: number) =>
+  api.post<Payment>(`/api/orders/${orderId}/pay/`)
+
+export const confirmDemoPayment = (paymentId: number, card: Card) =>
+  api.post<Payment>(`/api/payments/${paymentId}/demo-confirm/`, card)
 
 // ---- Helpers ----
 

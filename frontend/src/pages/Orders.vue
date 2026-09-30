@@ -10,6 +10,9 @@
       <div v-if="placedId && !loading" class="alert alert-success" role="status">
         {{ t('orders.placed', { id: placedId }) }}
       </div>
+      <div v-if="paidId && !loading" class="alert alert-success" role="status">
+        {{ t('orders.paid', { id: paidId }) }}
+      </div>
 
       <div v-if="loading" class="state-msg">{{ t('orders.loading') }}</div>
 
@@ -28,7 +31,7 @@
         <article
           v-for="order in orders"
           :key="order.id"
-          :class="['order-card', { 'order-card--highlight': order.id === placedId }]"
+          :class="['order-card', { 'order-card--highlight': order.id === placedId || order.id === paidId }]"
         >
           <div class="order-card__header">
             <div>
@@ -47,25 +50,29 @@
                 <!-- The live (translated) title when the book still exists, else the purchase-time snapshot. -->
                 <RouterLink v-if="item.book" :to="`/book/${item.book.id}`" class="order-line__title">{{ item.book.title }}</RouterLink>
                 <p v-else class="order-line__title">{{ item.title }}</p>
-                <p class="order-line__qty">{{ formatPrice(item.unit_price) }} × {{ item.quantity }}</p>
+                <p class="order-line__qty">{{ formatPrice(item.unit_price, order.currency) }} × {{ item.quantity }}</p>
               </div>
-              <span class="order-line__subtotal">{{ formatPrice(item.subtotal) }}</span>
+              <span class="order-line__subtotal">{{ formatPrice(item.subtotal, order.currency) }}</span>
             </div>
           </div>
 
           <div class="order-card__footer">
-            <button
-              v-if="order.status === 'pending'"
-              type="button"
-              class="btn btn-danger btn-sm"
-              :disabled="cancellingId !== null"
-              @click="cancel(order)"
-            >
-              {{ cancellingId === order.id ? t('orders.cancelling') : t('orders.cancel') }}
-            </button>
+            <div v-if="order.status === 'pending'" class="order-card__actions">
+              <RouterLink :to="`/orders/${order.id}/pay`" class="btn btn-primary btn-sm">
+                {{ t('orders.pay') }}
+              </RouterLink>
+              <button
+                type="button"
+                class="btn btn-danger btn-sm"
+                :disabled="cancellingId !== null"
+                @click="cancel(order)"
+              >
+                {{ cancellingId === order.id ? t('orders.cancelling') : t('orders.cancel') }}
+              </button>
+            </div>
             <div class="order-card__total">
               <span>{{ t('orders.total') }}</span>
-              {{ formatPrice(order.total) }}
+              {{ formatPrice(order.total, order.currency) }}
             </div>
           </div>
         </article>
@@ -90,10 +97,12 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const cancellingId = ref<number | null>(null)
 
-const placedId = computed(() => {
-  const id = Number(route.query.placed)
+const idFromQuery = (key: string) => {
+  const id = Number(route.query[key])
   return Number.isInteger(id) && id > 0 ? id : null
-})
+}
+const placedId = computed(() => idFromQuery('placed'))
+const paidId = computed(() => idFromQuery('paid'))
 
 const subtitle = computed(() => {
   if (loading.value || (error.value && orders.value.length === 0)) return ''

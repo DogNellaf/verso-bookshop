@@ -17,6 +17,7 @@ const pendingOrder = {
   id: 7,
   status: 'pending',
   total: '19.99',
+  currency: 'USD',
   item_count: 1,
   created_at: '2026-01-01T00:00:00Z',
   items: [{ id: 1, book: null, title: 'Dune', unit_price: '19.99', quantity: 1, subtotal: '19.99' }],
@@ -80,6 +81,26 @@ describe('Orders.vue', () => {
     expect(mockCancelOrder).toHaveBeenCalledWith(7)
     expect(wrapper.text()).toContain('Cancelled')
     expect(wrapper.findAll('button').some((b) => b.text() === 'Cancel order')).toBe(false)
+  })
+
+  it('offers to pay a pending order', async () => {
+    mockGetOrders.mockResolvedValue({ data: [pendingOrder] })
+    const router = await createTestRouter('/orders')
+    const wrapper = mount(Orders, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const pay = wrapper.findAll('a').find((a) => a.text() === 'Pay')
+    expect(pay!.attributes('href')).toBe('/orders/7/pay')
+  })
+
+  it('confirms a payment', async () => {
+    mockGetOrders.mockResolvedValue({ data: [{ ...pendingOrder, status: 'paid' }] })
+    const router = await createTestRouter('/orders?paid=7')
+    const wrapper = mount(Orders, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Payment received. Order #7 is paid.')
+    expect(wrapper.findAll('a').some((a) => a.text() === 'Pay')).toBe(false)
   })
 
   it('does not offer cancellation for shipped orders', async () => {

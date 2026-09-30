@@ -35,6 +35,17 @@
               <option v-for="l in LOCALES" :key="l.code" :value="l.code" :lang="l.code">{{ l.label }}</option>
             </select>
 
+            <label class="sr-only" for="currency">{{ t('app.currency') }}</label>
+            <select
+              id="currency"
+              class="locale-select"
+              :value="currency"
+              :title="t('app.currency')"
+              @change="changeCurrency(($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
+            </select>
+
             <button
               class="icon-btn"
               type="button"
@@ -85,8 +96,8 @@
     </header>
 
     <div id="main" class="bs-page" tabindex="-1">
-      <!-- Remount the page on language change so API content is refetched in it. -->
-      <RouterView :key="locale" />
+      <!-- Remount the page when the language or currency changes so API content is refetched. -->
+      <RouterView :key="`${locale}-${currency}`" />
     </div>
 
     <footer class="bs-footer">
@@ -106,6 +117,7 @@ import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useTheme } from './composables/useTheme'
+import { CURRENCIES, currency, isCurrency, setCurrency } from './currency'
 import { LOCALES, isLocale, setLocale } from './i18n'
 import { initSession, logout, session } from './stores/session'
 import { setPageTitle } from './utils/navigation'
@@ -126,13 +138,17 @@ const changeLocale = (value: string) => {
   if (isLocale(value)) setLocale(value)
 }
 
+const changeCurrency = (value: string) => {
+  if (isCurrency(value)) setCurrency(value)
+}
+
 // Re-translate the static page title when the language changes.
 watch(locale, () => {
   if (route.meta.titleKey) setPageTitle(t(route.meta.titleKey))
 })
 
-const handleLogout = () => {
-  logout()
+const handleLogout = async () => {
+  await logout()
   if (route.meta.requiresAuth) router.push('/')
 }
 

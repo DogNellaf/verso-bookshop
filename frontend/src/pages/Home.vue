@@ -75,7 +75,7 @@
               <p class="book-card__author">{{ book.author }}</p>
               <p class="book-card__desc">{{ book.description }}</p>
               <div class="book-card__footer">
-                <span class="book-card__price">{{ formatPrice(book.price) }}</span>
+                <span class="book-card__price">{{ formatPrice(book.price, book.currency) }}</span>
                 <StockBadge :stock="book.stock" />
               </div>
             </div>

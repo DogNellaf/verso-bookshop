@@ -16,7 +16,9 @@ describe('format helpers', () => {
 
   it('follows the UI language', () => {
     setLocale('de')
-    expect(formatPrice('12.5').replace(/\s/g, ' ')).toBe('12,50 $') // Intl uses a no-break space
+    // Intl uses a no-break space. The default currency follows the language.
+    expect(formatPrice('12.5', 'USD').replace(/\s/g, ' ')).toBe('12,50 $')
+    expect(formatPrice('12.5').replace(/\s/g, ' ')).toBe('12,50 €')
     expect(formatDate('2026-01-15T12:00:00Z')).toBe('15. Januar 2026')
   })
 })
