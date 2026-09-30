@@ -413,16 +413,6 @@ JavaScript.
 Les captures dans toutes les langues sont prises sur l'application en marche
 avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
-## Limites
-
-Ce qui manque dans la version actuelle.
-
-- Les taux de taxe se saisissent à la main dans l'administration. Il n'y a pas
-  de lien avec un service fiscal comme Stripe Tax, donc les taux locaux des
-  villes américaines autres que New York et Chicago s'ajoutent ligne par ligne.
-- Une commande trop lourde pour tous les modes est refusée, et le client doit
-  la diviser. La boutique ne répartit pas elle-même les colis.
-
 ## Structure du projet
 
 ```

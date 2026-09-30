@@ -387,16 +387,6 @@ JavaScript.
 Screenshots for all languages are taken from a running app with
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
-## Limitations
-
-Known limits of the current version.
-
-- Tax rates are entered by hand in the admin. There is no connection to a tax
-  service such as Stripe Tax, so the local rates of US cities other than New
-  York and Chicago have to be added as rows.
-- A heavy order that fits no method is refused, and the customer is asked to
-  split it. The shop doesn't split parcels itself.
-
 ## Project structure
 
 ```

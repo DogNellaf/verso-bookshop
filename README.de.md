@@ -403,16 +403,6 @@ JavaScript kein Token lesen kann.
 Screenshots in allen Sprachen entstehen an der laufenden App mit
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
-## Einschränkungen
-
-Was in der aktuellen Version fehlt.
-
-- Steuersätze werden im Admin von Hand gepflegt. Es gibt keine Anbindung an
-  einen Steuerdienst wie Stripe Tax, daher müssen lokale Sätze anderer
-  US-Städte als New York und Chicago als Zeilen ergänzt werden.
-- Eine Bestellung, die für jede Versandart zu schwer ist, wird abgelehnt, und
-  die Kundschaft soll sie aufteilen. Der Shop teilt Pakete nicht selbst auf.
-
 ## Projektstruktur
 
 ```
