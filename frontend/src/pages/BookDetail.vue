@@ -34,6 +34,7 @@
 
           <div class="book-detail__badge">
             <StockBadge :stock="book.stock" />
+            <span v-if="book.weight" class="book-detail__weight">{{ t('book.weight', { weight: formatWeight(book.weight) }) }}</span>
           </div>
 
           <p class="book-detail__desc">{{ book.description }}</p>
@@ -87,7 +88,7 @@ import StockBadge from '../components/StockBadge.vue'
 import { setPageTitle } from '../utils/navigation'
 import { addToCart, extractApiError, getBook, type Book } from '../services/api'
 import { session, setCartCount } from '../stores/session'
-import { formatPrice } from '../utils/format'
+import { formatPrice, formatWeight } from '../utils/format'
 
 const { t, locale } = useI18n()
 const route = useRoute()

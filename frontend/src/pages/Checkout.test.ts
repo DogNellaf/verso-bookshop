@@ -30,10 +30,13 @@ const quoteFor = (method = standard) => ({
     tax_name: 'VAT',
     tax: '1.75',
     total: '26.74',
+    weight: 1300,
     method,
     methods: [standard, express],
   },
 })
+
+const REGIONS = { US: [{ code: 'CA', name: 'California' }, { code: 'NY', name: 'New York' }] }
 
 const mountPage = async () => {
   const router = await createTestRouter('/checkout')
@@ -45,8 +48,8 @@ const mountPage = async () => {
 
 beforeEach(() => {
   Object.values(api).forEach((fn) => fn.mockReset())
-  api.getCheckoutInfo.mockResolvedValue({ data: { countries: null, saved_address: null } })
-  api.getQuote.mockImplementation(async (_country: string, method?: string) =>
+  api.getCheckoutInfo.mockResolvedValue({ data: { countries: null, saved_address: null, regions: REGIONS } })
+  api.getQuote.mockImplementation(async (_destination: unknown, method?: string) =>
     quoteFor(method === 'express' ? express : standard),
   )
 })
@@ -55,13 +58,16 @@ describe('Checkout.vue', () => {
   it('guesses the country from the language and quotes shipping and tax', async () => {
     setLocale('de')
     const { wrapper } = await mountPage()
-    expect(api.getQuote).toHaveBeenCalledWith('DE', undefined)
+    expect(api.getQuote).toHaveBeenCalledWith(expect.objectContaining({ country: 'DE' }), undefined)
     expect((wrapper.find('#country').element as HTMLSelectElement).value).toBe('DE')
     // Country names come from Intl in the interface language.
     expect(wrapper.find('#country option[value="DE"]').text()).toBe('Deutschland')
     const text = wrapper.text().replace(/\s/g, ' ')
     expect(text).toContain('MwSt. 7 %')
     expect(text).toContain('26,74 €')
+    expect(text).toContain('1,3 kg')
+    // Outside the US the region is free text.
+    expect(wrapper.find('input#region').exists()).toBe(true)
   })
 
   it('prefills the saved address', async () => {
@@ -70,13 +76,13 @@ describe('Checkout.vue', () => {
         countries: null,
         saved_address: {
           full_name: 'Bob', address_line1: '1 Main St', address_line2: '', city: 'Paris',
-          postal_code: '75001', country: 'FR', phone: '',
+          postal_code: '75001', country: 'FR', region: '', phone: '',
         },
       },
     })
     const { wrapper } = await mountPage()
     expect((wrapper.find('#city').element as HTMLInputElement).value).toBe('Paris')
-    expect(api.getQuote).toHaveBeenCalledWith('FR', undefined)
+    expect(api.getQuote).toHaveBeenCalledWith(expect.objectContaining({ country: 'FR' }), undefined)
   })
 
   it('offers only the countries the shop ships to', async () => {
@@ -84,14 +90,14 @@ describe('Checkout.vue', () => {
     const { wrapper } = await mountPage()
     const codes = wrapper.findAll('#country option').map((o) => o.attributes('value'))
     expect(codes.sort()).toEqual(['DE', 'FR'])
-    expect(api.getQuote).toHaveBeenCalledWith('DE', undefined)
+    expect(api.getQuote).toHaveBeenCalledWith(expect.objectContaining({ country: 'DE' }), undefined)
   })
 
   it('requotes when the shipping method changes', async () => {
     const { wrapper } = await mountPage()
     await wrapper.find('input[value="express"]').setValue(true)
     await flushPromises()
-    expect(api.getQuote).toHaveBeenLastCalledWith('US', 'express')
+    expect(api.getQuote).toHaveBeenLastCalledWith(expect.objectContaining({ country: 'US' }), 'express')
     expect(wrapper.find('.shipping-option--active').text()).toContain('Express')
   })
 
@@ -135,5 +141,40 @@ describe('Checkout.vue', () => {
     const { wrapper } = await mountPage()
     expect(wrapper.text()).toContain('Your cart is empty')
     expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('asks for a US state and requotes with it and the ZIP code', async () => {
+    setLocale('en')
+    const { wrapper } = await mountPage()
+    const select = wrapper.find('select#region')
+    expect(select.exists()).toBe(true)
+    expect(wrapper.text()).toContain('Sales tax is added once you choose a state.')
+    await select.setValue('NY')
+    await flushPromises()
+    expect(api.getQuote).toHaveBeenLastCalledWith(expect.objectContaining({ country: 'US', region: 'NY' }), 'standard')
+    await wrapper.find('#postal_code').setValue('10001')
+    await wrapper.find('#postal_code').trigger('change')
+    await flushPromises()
+    expect(api.getQuote).toHaveBeenLastCalledWith(expect.objectContaining({ postal_code: '10001' }), 'standard')
+    expect(wrapper.text()).not.toContain('Sales tax is added')
+  })
+
+  it('clears the state when the country changes', async () => {
+    setLocale('en')
+    const { wrapper } = await mountPage()
+    await wrapper.find('select#region').setValue('CA')
+    await wrapper.find('#country').setValue('DE')
+    await flushPromises()
+    expect(api.getQuote).toHaveBeenLastCalledWith(expect.objectContaining({ country: 'DE', region: '' }), 'standard')
+    expect(wrapper.find('input#region').exists()).toBe(true)
+  })
+
+  it('explains when the order is too heavy', async () => {
+    api.getQuote.mockRejectedValue({
+      response: { data: { weight: ['This order is too heavy to ship in one parcel. Please split it.'] } },
+    })
+    const { wrapper } = await mountPage()
+    expect(wrapper.text()).toContain('too heavy')
+    expect(wrapper.find('form').exists()).toBe(true)
   })
 })

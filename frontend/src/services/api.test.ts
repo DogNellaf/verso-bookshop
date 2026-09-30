@@ -131,10 +131,12 @@ describe('cart', () => {
     expect(h.get).toHaveBeenCalledWith('/api/cart/')
     getCheckoutInfo()
     expect(h.get).toHaveBeenCalledWith('/api/cart/checkout/info/')
-    getQuote('DE')
-    expect(h.post).toHaveBeenCalledWith('/api/cart/quote/', { country: 'DE', shipping_method: '' })
+    getQuote({ country: 'US', region: 'NY', postal_code: '10001' })
+    expect(h.post).toHaveBeenCalledWith('/api/cart/quote/', {
+      country: 'US', region: 'NY', postal_code: '10001', shipping_method: '',
+    })
     const address = {
-      full_name: 'A', address_line1: 'B', address_line2: '', city: 'C',
+      full_name: 'A', address_line1: 'B', address_line2: '', city: 'C', region: '',
       postal_code: '1', country: 'DE', phone: '',
     }
     checkout(address, 'express')

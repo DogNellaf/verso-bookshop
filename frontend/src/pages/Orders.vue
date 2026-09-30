@@ -61,13 +61,17 @@
               <strong>{{ t('orders.shipTo') }}</strong><br />
               {{ order.full_name }}<br />
               {{ order.address_line1 }}<template v-if="order.address_line2">, {{ order.address_line2 }}</template><br />
-              {{ order.postal_code }} {{ order.city }}, {{ countryName(order.country) }}
+              {{ order.postal_code }} {{ order.city }}<template v-if="order.region">, {{ order.region }}</template>,
+              {{ countryName(order.country) }}
             </p>
             <p v-if="order.shipping_method">
               <strong>{{ t('orders.delivery') }}</strong><br />
               {{ order.shipping_method }}<br />
               <template v-if="order.delivery_min_days !== null">
                 {{ t('checkout.days', { from: order.delivery_min_days, to: order.delivery_max_days }) }}
+              </template>
+              <template v-if="order.shipping_weight">
+                <br />{{ t('checkout.weight') }} {{ formatWeight(order.shipping_weight) }}
               </template>
             </p>
           </div>
@@ -117,7 +121,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import { countryName } from '../countries'
 import { cancelOrder, extractApiError, getOrders, type Order } from '../services/api'
-import { formatDate, formatPrice } from '../utils/format'
+import { formatDate, formatPrice, formatWeight } from '../utils/format'
 
 const { t, locale } = useI18n()
 const route = useRoute()

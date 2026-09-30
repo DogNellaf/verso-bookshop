@@ -102,6 +102,8 @@ export interface Book {
   price: string
   currency: string
   stock: number
+  /** Grams, with packaging. */
+  weight: number
   cover: string
   in_stock: boolean
 }
@@ -150,10 +152,12 @@ export interface Order {
   shipping_method: string
   delivery_min_days: number | null
   delivery_max_days: number | null
+  shipping_weight: number
   full_name: string
   address_line1: string
   address_line2: string
   city: string
+  region: string
   postal_code: string
   country: string
   phone: string
@@ -224,6 +228,8 @@ export interface Address {
   address_line1: string
   address_line2: string
   city: string
+  /** A state code in the US, free text elsewhere. */
+  region: string
   postal_code: string
   country: string
   phone: string
@@ -246,6 +252,8 @@ export interface Quote {
   tax_name: string
   tax: string
   total: string
+  /** Grams. */
+  weight: number
   method: ShippingOption
   methods: ShippingOption[]
 }
@@ -254,12 +262,22 @@ export interface CheckoutInfo {
   /** Countries served, or null when the shop ships everywhere. */
   countries: string[] | null
   saved_address: Address | null
+  /** Countries whose address needs a region from a list, the US states. */
+  regions: Record<string, { code: string; name: string }[]>
 }
 
 export const getCheckoutInfo = () => api.get<CheckoutInfo>('/api/cart/checkout/info/')
 
-export const getQuote = (country: string, shippingMethod?: string) =>
-  api.post<Quote>('/api/cart/quote/', { country, shipping_method: shippingMethod ?? '' })
+export const getQuote = (
+  destination: Pick<Address, 'country' | 'region' | 'postal_code'>,
+  shippingMethod?: string,
+) =>
+  api.post<Quote>('/api/cart/quote/', {
+    country: destination.country,
+    region: destination.region,
+    postal_code: destination.postal_code,
+    shipping_method: shippingMethod ?? '',
+  })
 
 export const checkout = (address: Address, shippingMethod: string) =>
   api.post<Order>('/api/cart/checkout/', { ...address, shipping_method: shippingMethod })

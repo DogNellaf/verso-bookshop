@@ -48,6 +48,13 @@ try {
   await page.goto(`${BASE_URL}/cart`)
   await page.getByRole('button', { name: 'Checkout' }).click()
   await page.waitForURL(`${BASE_URL}/checkout`)
+  await page.selectOption('#country', 'US')
+  await page.selectOption('#region', 'NY')
+  await page.fill('#postal_code', '10001')
+  await page.press('#postal_code', 'Tab')
+  await page.getByText('Tax 8.875%').waitFor()
+  step('Manhattan gets the combined New York sales tax')
+
   await page.fill('#full_name', 'Smoke Tester')
   await page.fill('#address_line1', 'Unter den Linden 1')
   await page.fill('#city', 'Berlin')

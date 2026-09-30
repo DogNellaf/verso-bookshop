@@ -51,7 +51,7 @@
               <div class="form-group">
                 <label class="form-label" for="postal_code">{{ t('checkout.postalCode') }}</label>
                 <input id="postal_code" v-model="address.postal_code" class="form-input" autocomplete="postal-code"
-                       :aria-invalid="!!fieldErrors.postal_code" required />
+                       :aria-invalid="!!fieldErrors.postal_code" required @change="refreshQuote()" />
                 <p v-if="fieldErrors.postal_code" class="form-error">{{ fieldErrors.postal_code }}</p>
               </div>
             </div>
@@ -60,22 +60,33 @@
               <div class="form-group">
                 <label class="form-label" for="country">{{ t('checkout.country') }}</label>
                 <select id="country" v-model="address.country" class="form-select form-select--block"
-                        autocomplete="country" :aria-invalid="!!fieldErrors.country" @change="refreshQuote()">
+                        autocomplete="country" :aria-invalid="!!fieldErrors.country" @change="changeCountry">
                   <option v-for="c in countries" :key="c.code" :value="c.code">{{ c.name }}</option>
                 </select>
                 <p v-if="fieldErrors.country" class="form-error">{{ fieldErrors.country }}</p>
               </div>
               <div class="form-group">
-                <label class="form-label" for="phone">{{ t('checkout.phone') }}</label>
-                <input id="phone" v-model="address.phone" class="form-input" type="tel" autocomplete="tel" />
+                <label class="form-label" for="region">{{ regionChoices ? t('checkout.state') : t('checkout.region') }}</label>
+                <select v-if="regionChoices" id="region" v-model="address.region" class="form-select form-select--block"
+                        autocomplete="address-level1" :aria-invalid="!!fieldErrors.region" required @change="refreshQuote()">
+                  <option value="" disabled>{{ t('checkout.chooseState') }}</option>
+                  <option v-for="r in regionChoices" :key="r.code" :value="r.code">{{ r.name }}</option>
+                </select>
+                <input v-else id="region" v-model="address.region" class="form-input" autocomplete="address-level1" />
+                <p v-if="fieldErrors.region" class="form-error">{{ fieldErrors.region }}</p>
               </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="phone">{{ t('checkout.phone') }}</label>
+              <input id="phone" v-model="address.phone" class="form-input" type="tel" autocomplete="tel" />
             </div>
           </section>
 
           <section class="payment-card">
             <h2 class="checkout-form__title">{{ t('checkout.shipping') }}</h2>
             <p v-if="!quote && !quoting" class="payment-card__text">{{ t('checkout.noShipping') }}</p>
-            <fieldset v-else class="shipping-options" :disabled="quoting">
+            <fieldset v-else class="shipping-options" :aria-busy="quoting">
               <legend class="sr-only">{{ t('checkout.shipping') }}</legend>
               <label v-for="option in quote?.methods ?? []" :key="option.code"
                      :class="['shipping-option', { 'shipping-option--active': option.code === method }]">
@@ -98,11 +109,15 @@
               <span>{{ formatPrice(quote.subtotal, quote.currency) }}</span>
             </div>
             <div class="cart-summary__row">
+              <span>{{ t('checkout.weight') }}</span>
+              <span>{{ formatWeight(quote.weight) }}</span>
+            </div>
+            <div class="cart-summary__row">
               <span>{{ t('cart.shipping') }}</span>
               <span>{{ quote.method.free ? t('cart.free') : formatPrice(quote.shipping, quote.currency) }}</span>
             </div>
             <div class="cart-summary__row">
-              <span>{{ Number(quote.tax_rate) ? t('checkout.tax', { rate: formatRate(quote.tax_rate) }) : t('checkout.noTax') }}</span>
+              <span>{{ taxLabel }}</span>
               <span>{{ formatPrice(quote.tax, quote.currency) }}</span>
             </div>
             <div class="cart-summary__total">
@@ -113,6 +128,7 @@
           <button class="btn btn-primary btn-lg" type="submit" :disabled="busy || !quote || quoting">
             {{ busy ? t('cart.processing') : t('checkout.placeOrder') }}
           </button>
+          <p v-if="regionChoices && !address.region" class="cart-summary__note">{{ t('checkout.taxAfterState') }}</p>
           <p class="cart-summary__note">{{ t('checkout.note') }}</p>
         </aside>
       </form>
@@ -133,10 +149,11 @@ import {
   getCheckoutInfo,
   getQuote,
   type Address,
+  type CheckoutInfo,
   type Quote,
 } from '../services/api'
 import { setCartCount } from '../stores/session'
-import { formatPrice } from '../utils/format'
+import { formatPrice, formatWeight } from '../utils/format'
 
 // A sensible first guess for the destination, from the interface language.
 const LOCALE_COUNTRY: Record<string, string> = { en: 'US', ru: 'RU', fr: 'FR', de: 'DE' }
@@ -149,11 +166,14 @@ const address = reactive<Address>({
   address_line1: '',
   address_line2: '',
   city: '',
+  region: '',
   postal_code: '',
   country: LOCALE_COUNTRY[currentLocale()] ?? 'US',
   phone: '',
 })
 const served = ref<string[] | null>(null)
+const regions = ref<CheckoutInfo['regions']>({})
+const regionChoices = computed(() => regions.value[address.country] ?? null)
 const countries = computed(() => sortedCountries(served.value ?? undefined))
 const quote = ref<Quote | null>(null)
 const method = ref('')
@@ -165,6 +185,16 @@ const error = ref<string | null>(null)
 const fieldErrors = reactive<Partial<Record<keyof Address, string>>>({})
 
 const formatRate = (rate: string) => Number(rate).toLocaleString(currentLocale())
+
+const taxLabel = computed(() => {
+  if (!quote.value || !Number(quote.value.tax_rate)) return t('checkout.noTax')
+  return t('checkout.tax', { rate: formatRate(quote.value.tax_rate) })
+})
+
+const changeCountry = () => {
+  address.region = ''
+  refreshQuote()
+}
 
 const clearErrors = () => {
   error.value = null
@@ -180,27 +210,36 @@ const applyErrors = (err: unknown, fallback: string) => {
       found = true
     }
   }
-  if (data.shipping_method) {
-    error.value = [data.shipping_method].flat().join(' ')
+  const general = data.shipping_method ?? data.weight
+  if (general) {
+    error.value = [general].flat().join(' ')
   } else if (!found) {
     error.value = extractApiError(err, fallback)
   }
 }
 
+// Only the latest request may update the page, so a slow answer for an old
+// country or ZIP code never overwrites a newer choice.
+let quoteRequest = 0
+
 const refreshQuote = async (chosen?: string) => {
+  const request = ++quoteRequest
   quoting.value = true
   clearErrors()
   try {
     // A method from another zone doesn't apply after the country changes.
     const keep = chosen ?? (quote.value?.methods.some((m) => m.code === method.value) ? method.value : undefined)
-    quote.value = (await getQuote(address.country, keep)).data
-    method.value = quote.value.method.code
+    const { data } = await getQuote(address, keep)
+    if (request !== quoteRequest) return
+    quote.value = data
+    method.value = data.method.code
   } catch (err) {
+    if (request !== quoteRequest) return
     quote.value = null
     if ((err as any)?.response?.data?.detail && !(err as any).response.data.country) empty.value = true
     applyErrors(err, t('checkout.quoteError'))
   } finally {
-    quoting.value = false
+    if (request === quoteRequest) quoting.value = false
   }
 }
 
@@ -222,6 +261,7 @@ onMounted(async () => {
   try {
     const { data } = await getCheckoutInfo()
     served.value = data.countries
+    regions.value = data.regions ?? {}
     if (data.saved_address) Object.assign(address, data.saved_address)
     if (served.value && !served.value.includes(address.country)) address.country = served.value[0]
     await refreshQuote()

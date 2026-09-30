@@ -25,3 +25,16 @@ export const formatDate = (iso: string) => {
     new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long', day: 'numeric' }),
   ).format(new Date(iso))
 }
+
+/** Grams as "450 g" or "1.3 kg" in the UI language. */
+export const formatWeight = (grams: number) => {
+  const locale = currentLocale()
+  const kg = grams >= 1000
+  return cached(`weight:${locale}:${kg}`, () =>
+    new Intl.NumberFormat(locale, {
+      style: 'unit',
+      unit: kg ? 'kilogram' : 'gram',
+      maximumFractionDigits: 1,
+    }),
+  ).format(kg ? grams / 1000 : grams)
+}

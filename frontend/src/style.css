@@ -487,7 +487,8 @@ body { background-color: var(--bs-page); }
   margin-top: 1.25rem;
 }
 
-.book-detail__badge { margin-top: .75rem; }
+.book-detail__badge { margin-top: .75rem; display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; }
+.book-detail__weight { font-size: .85rem; color: var(--bs-muted-fg); }
 
 .book-detail__desc {
   margin-top: 1.5rem;
