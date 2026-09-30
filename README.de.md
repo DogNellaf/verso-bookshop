@@ -219,9 +219,11 @@ pnpm install
 pnpm run dev                    # http://127.0.0.1:5173
 ```
 
-`seed` nimmt Cover aus `backend/main/fixtures/covers/`, wenn sie im Repository
-liegen, und lädt sie sonst von Open Library; `--save-covers` legt die Downloads
-dort ab, `--no-covers` überspringt das Herunterladen, `--flush` beginnt von vorn.
+Die Cover der Demo-Bücher (von Open Library) liegen im Repository unter
+`backend/main/fixtures/covers/`, daher funktioniert `seed` auch offline. Für
+Bücher ohne mitgeliefertes Cover lädt `seed` eines von Open Library;
+`--save-covers` legt die Downloads dort ab, `--no-covers` überspringt das
+Herunterladen, `--flush` beginnt von vorn.
 
 ## Konfiguration
 
@@ -284,7 +286,7 @@ Bekannte Grenzen der aktuellen Umsetzung:
 │   ├── bookshop/            # Einstellungen und Root-URLconf
 │   ├── locale/              # API-Meldungen auf Russisch, Französisch und Deutsch (gettext)
 │   └── main/
-│       ├── fixtures/covers/ # Mitgelieferte Cover für Offline-Seeding (optional)
+│       ├── fixtures/covers/ # Mitgelieferte Demo-Cover (Offline-Seeding)
 │       ├── management/      # seed-Befehl und Katalogübersetzungen
 │       ├── filters.py, pagination.py, serializers.py, views.py, admin.py
 │       └── tests.py

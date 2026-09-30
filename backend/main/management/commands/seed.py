@@ -33,7 +33,7 @@ BOOKS = [
     {
         "title": "The Great Gatsby",
         "author": "F. Scott Fitzgerald",
-        "isbn": "9780743273565",
+        "isbn": "9780141182636",
         "price": "12.99",
         "stock": 8,
         "description": (
@@ -105,7 +105,7 @@ BOOKS = [
     {
         "title": "Crime and Punishment",
         "author": "Fyodor Dostoevsky",
-        "isbn": "9780143058144",
+        "isbn": "9780140449136",
         "price": "15.99",
         "stock": 0,
         "description": (
@@ -117,7 +117,7 @@ BOOKS = [
     {
         "title": "The Hobbit",
         "author": "J. R. R. Tolkien",
-        "isbn": "9780547928227",
+        "isbn": "9780261103344",
         "price": "16.99",
         "stock": 10,
         "description": (

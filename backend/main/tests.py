@@ -599,6 +599,9 @@ class SeedCommandTest(TestCase):
         call_command("seed", "--no-covers", stdout=StringIO())
         call_command("seed", "--no-covers", stdout=StringIO())
 
+        # Every demo book has a cover bundled in the repository.
+        self.assertEqual(Book.objects.exclude(cover="").count(), 18)
+
         self.assertEqual(Book.objects.count(), 18)
         self.assertEqual(BookTranslation.objects.count(), 18 * 3)
         self.assertEqual(Order.objects.filter(buyer__username="demo").count(), 3)
@@ -638,13 +641,18 @@ class SeedCommandTest(TestCase):
         self.assertEqual(Book.objects.exclude(cover="").count(), 18)
 
     def test_flush_and_failed_downloads(self):
+        from pathlib import Path
         from unittest import mock
         from urllib.error import URLError
 
         from django.core.management import call_command
 
         make_book(title="Leftover")
-        with mock.patch("urllib.request.urlopen", side_effect=URLError("offline")):
+        no_bundled = Path(tempfile.mkdtemp(prefix="verso-covers-"))
+        with (
+            mock.patch("main.management.commands.seed.BUNDLED_COVERS", no_bundled),
+            mock.patch("urllib.request.urlopen", side_effect=URLError("offline")),
+        ):
             call_command("seed", "--flush", stdout=StringIO())
 
         self.assertFalse(Book.objects.filter(title="Leftover").exists())

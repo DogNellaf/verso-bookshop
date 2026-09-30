@@ -209,9 +209,11 @@ pnpm install
 pnpm run dev                    # http://127.0.0.1:5173
 ```
 
-`seed` берёт обложки из `backend/main/fixtures/covers/`, если они есть в
-репозитории, а иначе скачивает их из Open Library; `--save-covers` сохраняет
-скачанное туда, `--no-covers` отключает загрузку, `--flush` начинает с чистого листа.
+Обложки демо-книг (из Open Library) лежат в репозитории, в
+`backend/main/fixtures/covers/`, поэтому `seed` работает без интернета. Для
+книг без сохранённой обложки `seed` скачивает её из Open Library;
+`--save-covers` сохраняет скачанное туда, `--no-covers` отключает загрузку,
+`--flush` начинает с чистого листа.
 
 ## Настройки
 
@@ -273,7 +275,7 @@ OpenAPI, скомпилированные переводы и собирает D
 │   ├── bookshop/            # Настройки и корневой URLconf
 │   ├── locale/              # Переводы сообщений API на ru, fr, de (gettext)
 │   └── main/
-│       ├── fixtures/covers/ # Обложки для загрузки без интернета (необязательно)
+│       ├── fixtures/covers/ # Обложки демо-книг для работы без интернета
 │       ├── management/      # Команда seed и переводы каталога
 │       ├── filters.py, pagination.py, serializers.py, views.py, admin.py
 │       └── tests.py

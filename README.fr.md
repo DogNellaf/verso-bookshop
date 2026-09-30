@@ -219,8 +219,9 @@ pnpm install
 pnpm run dev                    # http://127.0.0.1:5173
 ```
 
-`seed` prend les couvertures dans `backend/main/fixtures/covers/` quand elles
-sont fournies avec le dépôt, sinon les télécharge depuis Open Library ;
+Les couvertures des livres de démo (issues d'Open Library) sont fournies dans
+`backend/main/fixtures/covers/`, donc `seed` fonctionne hors ligne. Pour un
+livre sans couverture fournie, `seed` la télécharge depuis Open Library ;
 `--save-covers` y enregistre les téléchargements, `--no-covers` les désactive,
 `--flush` repart de zéro.
 
@@ -285,7 +286,7 @@ Limites connues de l'implémentation actuelle :
 │   ├── bookshop/            # Paramètres et URLconf racine
 │   ├── locale/              # Messages de l'API en russe, français et allemand (gettext)
 │   └── main/
-│       ├── fixtures/covers/ # Couvertures fournies pour un seed hors ligne (facultatif)
+│       ├── fixtures/covers/ # Couvertures de démo (seed hors ligne)
 │       ├── management/      # Commande seed et traductions du catalogue
 │       ├── filters.py, pagination.py, serializers.py, views.py, admin.py
 │       └── tests.py
