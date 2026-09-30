@@ -131,6 +131,11 @@ const ru: typeof en = {
     cancel: 'Отменить заказ',
     cancelling: 'Отменяем…',
     confirmCancel: 'Отменить заказ №{id}? Книги вернутся на склад.',
+    confirmCancelPaid: "Отменить заказ №{id}? Деньги вернутся на карту, книги вернутся на склад.",
+    refund: {
+      refunded: 'Деньги возвращены.',
+      pending: 'Возврат денег в процессе.',
+    },
     cancelError: 'Не удалось отменить заказ.',
     status: {
       pending: 'Ожидает',

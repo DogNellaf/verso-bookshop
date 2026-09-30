@@ -130,6 +130,11 @@ const de: typeof en = {
     cancel: 'Bestellung stornieren',
     cancelling: 'Wird storniert…',
     confirmCancel: 'Bestellung Nr. {id} stornieren? Die Bücher gehen zurück ins Lager.',
+    confirmCancelPaid: "Bestellung Nr. {id} stornieren? Das Geld wird auf Ihre Karte erstattet und die Bücher gehen zurück ins Lager.",
+    refund: {
+      refunded: 'Das Geld wurde erstattet.',
+      pending: 'Die Erstattung ist unterwegs.',
+    },
     cancelError: 'Bestellung konnte nicht storniert werden.',
     status: {
       pending: 'Ausstehend',

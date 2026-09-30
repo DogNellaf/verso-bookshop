@@ -1203,3 +1203,7 @@ a.order-line__title:hover { color: var(--bs-accent); }
 .test-cards .link-btn { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; text-decoration: none; }
 
 .order-card__actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+.order-card__refund { margin: 0; font-size: .85rem; font-weight: 600; }
+.order-card__refund--refunded { color: var(--bs-success-fg); }
+.order-card__refund--pending { color: var(--bs-warning-fg); }

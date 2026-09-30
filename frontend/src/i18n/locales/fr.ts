@@ -130,6 +130,11 @@ const fr: typeof en = {
     cancel: 'Annuler la commande',
     cancelling: 'Annulation…',
     confirmCancel: 'Annuler la commande n° {id} ? Les livres seront remis en stock.',
+    confirmCancelPaid: "Annuler la commande n° {id} ? L'argent sera remboursé sur votre carte et les livres remis en stock.",
+    refund: {
+      refunded: "L'argent a été remboursé.",
+      pending: 'Le remboursement est en cours.',
+    },
     cancelError: "Impossible d'annuler la commande.",
     status: {
       pending: 'En attente',

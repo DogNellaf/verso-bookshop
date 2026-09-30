@@ -3,7 +3,8 @@
 //   BASE_URL=http://localhost:8080 pnpm run smoke
 //
 // Signs in with the demo account, buys a book, pays with a declined and then
-// a working test card, and checks that no auth token is readable by scripts.
+// a working test card, cancels it for a refund, and checks that no auth token
+// is readable by scripts.
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 
@@ -61,6 +62,11 @@ try {
   await page.waitForURL(/\/orders\?paid=\d+$/)
   await page.locator('.order-card--highlight .badge-paid').waitFor()
   step('a good card pays the order')
+
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.locator('.order-card--highlight').getByRole('button', { name: 'Cancel order' }).click()
+  await page.locator('.order-card--highlight .order-card__refund--refunded').waitFor()
+  step('cancelling the paid order refunds the money')
 
   await page.locator('.bs-logout').click()
   await page.getByRole('link', { name: 'Login' }).waitFor()

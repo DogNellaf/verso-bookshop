@@ -128,6 +128,11 @@ export default {
     cancel: 'Cancel order',
     cancelling: 'Cancelling…',
     confirmCancel: 'Cancel order #{id}? The books will be returned to stock.',
+    confirmCancelPaid: "Cancel order #{id}? The money will be refunded to your card and the books returned to stock.",
+    refund: {
+      refunded: 'The money has been refunded.',
+      pending: 'The refund is on its way.',
+    },
     cancelError: 'Failed to cancel the order.',
     status: {
       pending: 'Pending',

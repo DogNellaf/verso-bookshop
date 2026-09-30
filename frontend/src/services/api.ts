@@ -143,6 +143,8 @@ export interface Order {
   status: OrderStatus
   total: string
   currency: string
+  /** "refunded", "pending" while a refund is being retried, or null. */
+  refund: 'refunded' | 'pending' | null
   item_count: number
   created_at: string
   items: OrderItem[]

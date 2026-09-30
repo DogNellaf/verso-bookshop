@@ -57,8 +57,11 @@
           </div>
 
           <div class="order-card__footer">
-            <div v-if="order.status === 'pending'" class="order-card__actions">
-              <RouterLink :to="`/orders/${order.id}/pay`" class="btn btn-primary btn-sm">
+            <p v-if="order.refund" :class="['order-card__refund', `order-card__refund--${order.refund}`]">
+              {{ t(`orders.refund.${order.refund}`) }}
+            </p>
+            <div v-if="canCancel(order)" class="order-card__actions">
+              <RouterLink v-if="order.status === 'pending'" :to="`/orders/${order.id}/pay`" class="btn btn-primary btn-sm">
                 {{ t('orders.pay') }}
               </RouterLink>
               <button
@@ -123,8 +126,12 @@ const fetchOrders = async () => {
   }
 }
 
+// Paid orders can still be cancelled until they ship; the money is refunded.
+const canCancel = (order: Order) => order.status === 'pending' || order.status === 'paid'
+
 const cancel = async (order: Order) => {
-  if (!window.confirm(t('orders.confirmCancel', { id: order.id }))) return
+  const question = order.status === 'paid' ? 'orders.confirmCancelPaid' : 'orders.confirmCancel'
+  if (!window.confirm(t(question, { id: order.id }))) return
   cancellingId.value = order.id
   error.value = null
   try {

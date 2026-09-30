@@ -83,6 +83,34 @@ describe('Orders.vue', () => {
     expect(wrapper.findAll('button').some((b) => b.text() === 'Cancel order')).toBe(false)
   })
 
+  it('cancels a paid order with a refund', async () => {
+    const paid = { ...pendingOrder, status: 'paid', refund: null }
+    mockGetOrders.mockResolvedValue({ data: [paid] })
+    mockCancelOrder.mockResolvedValue({ data: { ...paid, status: 'cancelled', refund: 'refunded' } })
+    const router = await createTestRouter('/orders')
+    const wrapper = mount(Orders, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.findAll('a').some((a) => a.text() === 'Pay')).toBe(false)
+    const cancelBtn = wrapper.findAll('button').find((b) => b.text() === 'Cancel order')
+    await cancelBtn!.trigger('click')
+    await flushPromises()
+
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('refunded to your card'))
+    expect(wrapper.text()).toContain('Cancelled')
+    expect(wrapper.text()).toContain('The money has been refunded.')
+  })
+
+  it('shows a refund that is still being retried', async () => {
+    mockGetOrders.mockResolvedValue({ data: [{ ...pendingOrder, status: 'cancelled', refund: 'pending' }] })
+    const router = await createTestRouter('/orders')
+    const wrapper = mount(Orders, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('.order-card__refund--pending').text()).toBe('The refund is on its way.')
+    expect(wrapper.text()).not.toContain('Cancel order')
+  })
+
   it('offers to pay a pending order', async () => {
     mockGetOrders.mockResolvedValue({ data: [pendingOrder] })
     const router = await createTestRouter('/orders')
