@@ -10,6 +10,7 @@ export async function createTestRouter(initialRoute = '/') {
       { path: '/book/:id', component: Blank },
       { path: '/register', component: Blank },
       { path: '/login', component: Blank },
+      { path: '/cart', component: Blank },
       { path: '/orders', component: Blank },
     ],
   })

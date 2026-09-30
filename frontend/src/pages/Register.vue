@@ -45,7 +45,7 @@
           />
         </div>
 
-        <div v-if="error" class="alert alert-error">{{ error }}</div>
+        <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
 
         <button type="submit" class="btn btn-primary btn-lg form-submit" :disabled="loading">
           {{ loading ? 'Creating account…' : 'Create account' }}
@@ -54,7 +54,7 @@
 
       <p class="auth-footer">
         Already have an account?
-        <RouterLink to="/login">Sign in</RouterLink>
+        <RouterLink :to="{ path: '/login', query: route.query }">Sign in</RouterLink>
       </p>
     </div>
   </div>
@@ -62,10 +62,12 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { safeRedirect } from '../utils/navigation'
 import { extractApiError } from '../services/api'
 import { register } from '../stores/session'
 
+const route = useRoute()
 const router = useRouter()
 const form = ref({ username: '', email: '', password: '' })
 const loading = ref(false)
@@ -76,7 +78,7 @@ const handleRegister = async () => {
   error.value = null
   try {
     await register(form.value.username, form.value.email, form.value.password)
-    router.push('/')
+    router.push(safeRedirect(route.query.next))
   } catch (err) {
     error.value = extractApiError(err, 'Registration failed. Please try again.')
     console.error('[verso] Registration error:', err)

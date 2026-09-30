@@ -23,6 +23,7 @@ vi.mock('axios', () => {
 
 import {
   addToCart,
+  cancelOrder,
   checkout,
   clearTokens,
   extractApiError,
@@ -54,8 +55,13 @@ describe('books', () => {
   })
 
   it('includes the search term when given', () => {
-    getBooks(2, 'orwell')
+    getBooks({ page: 2, search: 'orwell' })
     expect(mockGet).toHaveBeenCalledWith('/api/books/?page=2&search=orwell')
+  })
+
+  it('passes ordering and the in-stock filter', () => {
+    getBooks({ ordering: '-price', inStock: true })
+    expect(mockGet).toHaveBeenCalledWith('/api/books/?page=1&ordering=-price&in_stock=true')
   })
 
   it('requests a single book', () => {
@@ -122,6 +128,11 @@ describe('orders', () => {
   it('lists orders', () => {
     getOrders()
     expect(mockGet).toHaveBeenCalledWith('/api/orders/')
+  })
+
+  it('cancels an order', () => {
+    cancelOrder(7)
+    expect(mockPost).toHaveBeenCalledWith('/api/orders/7/cancel/')
   })
 
   it('reads one order', () => {

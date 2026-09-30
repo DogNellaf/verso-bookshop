@@ -1,5 +1,7 @@
 <template>
   <div class="bs-root">
+    <a href="#main" class="skip-link">Skip to content</a>
+
     <header class="bs-header">
       <div class="bs-container">
         <div class="bs-header__inner">
@@ -21,18 +23,38 @@
             <span class="bs-brand__name">Verso</span>
           </RouterLink>
 
-          <nav class="bs-header__nav">
-            <RouterLink to="/cart" class="bs-cart-link" aria-label="Cart">
-              <span aria-hidden="true">🛒</span>
+          <nav class="bs-header__nav" aria-label="Main">
+            <button
+              class="icon-btn"
+              type="button"
+              :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+              :title="theme === 'dark' ? 'Light theme' : 'Dark theme'"
+              @click="toggleTheme"
+            >
+              <svg v-if="theme === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />
+              </svg>
+            </button>
+
+            <RouterLink to="/cart" class="icon-btn bs-cart-link" :aria-label="cartLabel">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 4h2l2.4 11.2a1 1 0 0 0 1 .8h9.3a1 1 0 0 0 1-.8L20.5 8H6.2" />
+                <circle cx="9.5" cy="19.5" r="1.3" />
+                <circle cx="17" cy="19.5" r="1.3" />
+              </svg>
               <span v-if="session.cartCount > 0" class="bs-cart-badge">{{ session.cartCount }}</span>
             </RouterLink>
 
             <template v-if="session.user">
               <span class="bs-nav-username">Hi, {{ session.user.username }}</span>
               <RouterLink to="/orders" class="bs-nav-link">My Orders</RouterLink>
-              <button class="btn btn-danger btn-sm" @click="handleLogout">Logout</button>
+              <button class="btn btn-danger btn-sm" type="button" @click="handleLogout">Logout</button>
             </template>
-            <template v-else>
+            <template v-else-if="session.ready">
               <RouterLink to="/login" class="bs-nav-link">Login</RouterLink>
               <RouterLink to="/register" class="btn btn-primary btn-sm">Register</RouterLink>
             </template>
@@ -41,26 +63,40 @@
       </div>
     </header>
 
-    <RouterView />
+    <div id="main" class="bs-page" tabindex="-1">
+      <RouterView />
+    </div>
 
     <footer class="bs-footer">
-      <div class="bs-container">
-        <p>© 2025 Verso. All rights reserved.</p>
+      <div class="bs-container bs-footer__inner">
+        <p>© {{ year }} Verso — a portfolio demo store. No real payments are taken.</p>
+        <nav class="bs-footer__links" aria-label="Footer">
+          <a href="/api/docs/" target="_blank" rel="noopener">API docs</a>
+          <a href="https://github.com/DogNellaf/verso-bookshop" target="_blank" rel="noopener">Source on GitHub</a>
+        </nav>
       </div>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { computed, onMounted } from 'vue'
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
+import { useTheme } from './composables/useTheme'
 import { initSession, logout, session } from './stores/session'
 
 const router = useRouter()
+const route = useRoute()
+const { theme, toggle: toggleTheme } = useTheme()
+const year = new Date().getFullYear()
+
+const cartLabel = computed(() =>
+  session.cartCount > 0 ? `Cart, ${session.cartCount} items` : 'Cart',
+)
 
 const handleLogout = () => {
   logout()
-  router.push('/')
+  if (route.meta.requiresAuth) router.push('/')
 }
 
 onMounted(initSession)

@@ -79,7 +79,33 @@ describe('Cart.vue', () => {
     await flushPromises()
 
     expect(mockCheckout).toHaveBeenCalled()
-    expect(pushSpy).toHaveBeenCalledWith('/orders')
+    expect(pushSpy).toHaveBeenCalledWith({ path: '/orders', query: { placed: '99' } })
+  })
+
+  it('keeps the cart and shows the error when checkout fails', async () => {
+    mockGetCart.mockResolvedValue({ data: cartData })
+    mockCheckout.mockRejectedValue({ response: { data: { detail: 'Not enough stock.' } } })
+    const router = await createTestRouter('/cart')
+    const wrapper = mount(Cart, { global: { plugins: [router] } })
+    await flushPromises()
+
+    const checkoutBtn = wrapper.findAll('button').find((b) => b.text().includes('Checkout'))
+    await checkoutBtn!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Checkout failed')
+    expect(wrapper.text()).toContain('Dune')
+    expect(mockGetCart).toHaveBeenCalledTimes(2) // refreshed after the failure
+  })
+
+  it('does not allow increasing beyond stock', async () => {
+    const atStock = { ...cartData, items: [{ ...cartData.items[0], quantity: 5 }] }
+    mockGetCart.mockResolvedValue({ data: atStock })
+    const router = await createTestRouter('/cart')
+    const wrapper = mount(Cart, { global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(wrapper.find('button[aria-label="Increase quantity of Dune"]').attributes('disabled')).toBeDefined()
   })
 
   it('prompts login when unauthenticated', async () => {

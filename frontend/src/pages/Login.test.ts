@@ -30,6 +30,44 @@ describe('Login.vue', () => {
     expect(pushSpy).toHaveBeenCalledWith('/')
   })
 
+  it('returns to the page that required login', async () => {
+    mockLogin.mockResolvedValue(undefined)
+    const router = await createTestRouter('/login?next=/cart')
+    const pushSpy = vi.spyOn(router, 'push')
+    const wrapper = mount(Login, { global: { plugins: [router] } })
+
+    await wrapper.find('#username').setValue('bob')
+    await wrapper.find('#password').setValue('secret123')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(pushSpy).toHaveBeenCalledWith('/cart')
+  })
+
+  it('ignores off-site redirect targets', async () => {
+    mockLogin.mockResolvedValue(undefined)
+    const router = await createTestRouter('/login?next=//evil.example.com')
+    const pushSpy = vi.spyOn(router, 'push')
+    const wrapper = mount(Login, { global: { plugins: [router] } })
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(pushSpy).toHaveBeenCalledWith('/')
+  })
+
+  it('signs in with the demo account in one click', async () => {
+    mockLogin.mockResolvedValue(undefined)
+    const router = await createTestRouter('/login')
+    const wrapper = mount(Login, { global: { plugins: [router] } })
+
+    const demoBtn = wrapper.findAll('button').find((b) => b.text().includes('demo account'))
+    await demoBtn!.trigger('click')
+    await flushPromises()
+
+    expect(mockLogin).toHaveBeenCalledWith('demo', 'demopass123')
+  })
+
   it('shows an error message on invalid credentials', async () => {
     mockLogin.mockRejectedValue({ response: { data: { detail: 'No active account found with the given credentials' } } })
     const router = await createTestRouter('/login')

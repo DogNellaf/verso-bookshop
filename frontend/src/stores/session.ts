@@ -60,8 +60,20 @@ export function logout() {
   session.cartCount = 0
 }
 
-export async function initSession() {
-  await refreshUser()
-  await refreshCart()
-  session.ready = true
+// Resolve the logged-in user once; route guards and the app shell share
+// the same promise so the /api/auth/user/ call isn't repeated.
+let initPromise: Promise<void> | null = null
+
+export function initSession() {
+  initPromise ??= (async () => {
+    await refreshUser()
+    await refreshCart()
+    session.ready = true
+  })()
+  return initPromise
 }
+
+api.onAuthLost(() => {
+  session.user = null
+  session.cartCount = 0
+})

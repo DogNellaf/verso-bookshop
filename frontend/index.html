@@ -3,8 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Verso is a demo online bookstore: browse classics, fill a persistent cart and check out. Built with Django REST Framework and Vue 3." />
+    <meta name="theme-color" content="#3b82f6" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Verso — Online Bookstore" />
+    <meta property="og:description" content="A full-stack demo bookstore built with Django REST Framework and Vue 3." />
     <title>Verso — Online Bookstore</title>
+    <script>
+      // Apply the saved/system theme before first paint to avoid a flash.
+      try {
+        var t = localStorage.getItem('verso_theme')
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.dataset.theme = t
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -22,6 +22,29 @@ export const clearTokens = () => {
 
 const api = axios.create({ baseURL: API_BASE })
 
+// Called when the session can't be recovered (refresh token expired/invalid),
+// so the UI can drop the logged-in state.
+let authLostHandler: (() => void) | null = null
+export const onAuthLost = (handler: () => void) => {
+  authLostHandler = handler
+}
+
+// Share one in-flight refresh between concurrent 401s so parallel requests
+// don't race each other with the same (rotating) refresh token.
+let refreshing: Promise<string> | null = null
+const refreshAccessToken = () => {
+  refreshing ??= axios
+    .post(`${API_BASE}/api/auth/token/refresh/`, { refresh: getRefreshToken() })
+    .then(({ data }) => {
+      setTokens(data.access, data.refresh)
+      return data.access as string
+    })
+    .finally(() => {
+      refreshing = null
+    })
+  return refreshing
+}
+
 // Attach the bearer token to every request.
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAccessToken()
@@ -38,14 +61,12 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && !isAuthCall && getRefreshToken()) {
       original._retry = true
       try {
-        const { data } = await axios.post(`${API_BASE}/api/auth/token/refresh/`, {
-          refresh: getRefreshToken(),
-        })
-        setTokens(data.access, data.refresh)
-        original.headers.Authorization = `Bearer ${data.access}`
+        const access = await refreshAccessToken()
+        original.headers.Authorization = `Bearer ${access}`
         return api(original)
       } catch (refreshError) {
         clearTokens()
+        authLostHandler?.()
         return Promise.reject(refreshError)
       }
     }
@@ -95,9 +116,11 @@ export interface OrderItem {
   subtotal: string
 }
 
+export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled'
+
 export interface Order {
   id: number
-  status: string
+  status: OrderStatus
   total: string
   item_count: number
   created_at: string
@@ -106,12 +129,29 @@ export interface Order {
 
 // ---- Books ----
 
-export const getBooks = (page = 1, search = '') => {
+export type BookOrdering = 'title' | '-title' | 'author' | 'price' | '-price'
+
+export interface BookQuery {
+  page?: number
+  search?: string
+  ordering?: BookOrdering
+  inStock?: boolean
+}
+
+export interface Paginated<T> {
+  results: T[]
+  next: string | null
+  previous: string | null
+  count: number
+  total_pages: number
+}
+
+export const getBooks = ({ page = 1, search = '', ordering, inStock }: BookQuery = {}) => {
   const params = new URLSearchParams({ page: String(page) })
   if (search) params.set('search', search)
-  return api.get<{ results: Book[]; next: string | null; previous: string | null; count: number }>(
-    `/api/books/?${params.toString()}`,
-  )
+  if (ordering) params.set('ordering', ordering)
+  if (inStock) params.set('in_stock', 'true')
+  return api.get<Paginated<Book>>(`/api/books/?${params.toString()}`)
 }
 
 export const getBook = (id: number) => api.get<Book>(`/api/books/${id}/`)
@@ -152,6 +192,8 @@ export const checkout = () => api.post<Order>('/api/cart/checkout/')
 export const getOrders = () => api.get<Order[]>('/api/orders/')
 
 export const getOrder = (id: number) => api.get<Order>(`/api/orders/${id}/`)
+
+export const cancelOrder = (id: number) => api.post<Order>(`/api/orders/${id}/cancel/`)
 
 // ---- Helpers ----
 
