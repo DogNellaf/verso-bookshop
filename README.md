@@ -70,12 +70,19 @@ order goes through these statuses.
 Shipping and tax come from tables that staff edit in the admin. These are the
 defaults.
 
-| Zone | Shipping | Free from | Tax on books |
-|---|---|---|---|
-| United States | Standard $4.99, Express $14.99 | $35 | none (state sales tax is not collected) |
-| European Union | Standard $6.99, Express $19.99 | $50 | reduced VAT, e.g. 7% in Germany, 5.5% in France |
-| Russia | Russian Post $5.99, Courier $11.99 | $40 | 10% |
-| Rest of the world | International $12.99 | $80 | none |
+| Zone | Shipping, first kg | Each extra kg | Free from | Tax on books |
+|---|---|---|---|---|
+| United States | Standard $4.99, Express $14.99 | $1.50, $4.00 | $35 | state sales tax, e.g. 7.25% in California, 8.875% in New York City |
+| European Union | Standard $6.99, Express $19.99 | $2.00, $5.00 | $50 | reduced VAT, e.g. 7% in Germany, 5.5% in France |
+| Russia | Russian Post $5.99, Courier $11.99 | $1.50, $3.00 | $40 | 10% |
+| Rest of the world | International $12.99 | $6.00 | $80 | none |
+
+Every book has a weight. A method charges its base price for the first kilogram
+and a fixed amount for each started kilogram above it, and express takes
+parcels up to 10 kg. A tax rate can cover a country, a state or a range of
+postal codes, and the most specific one wins. The defaults hold the state rates
+of all US states and the combined city rates of New York City and Chicago. A
+rate also says whether shipping is taxed.
 
 Checkout runs in one transaction and locks the book rows before it checks the
 stock.
@@ -104,10 +111,12 @@ with transaction.atomic():
   and missing funds. The Stripe provider creates a Checkout Session, and only
   the signed Stripe webhook marks an order as paid. Webhook deliveries are
   idempotent.
-- The checkout quotes shipping and tax on the server for the chosen country
-  and method, in the chosen currency. Tax applies to the books and the
-  shipping. The order keeps the address, the method with its delivery time and
-  every amount, so later price changes don't touch it.
+- The checkout quotes shipping and tax on the server for the address and
+  method, in the chosen currency. The price follows the weight of the books, a
+  method disappears when the parcel is over its limit, and the tax comes from
+  the country, the US state or the ZIP code. The order keeps the address, the
+  method with its delivery time, the weight and every amount, so later price
+  changes don't touch it.
 - Every refund is its own row with an amount and a reason, so a payment can be
   refunded in parts. Staff refund any amount from the admin, and cancelling an
   order refunds what is left. Money that arrives for an order cancelled in the
@@ -232,7 +241,7 @@ API and a Vue frontend. The overhaul included these changes.
 - Added order cancellation, catalog filters and a cart with a fixed number of
   queries.
 - Added a checkout page with a delivery address, shipping zones and methods,
-  and taxes by country.
+  taxes by country, US state and ZIP code, and shipping by weight.
 - Added card payments with a demo provider and Stripe Checkout, with full and
   partial refunds.
 - Moved the list of currencies into the admin.
@@ -250,7 +259,7 @@ API and a Vue frontend. The overhaul included these changes.
   and added real covers for the demo books.
 - Documented the API with OpenAPI and Swagger UI, added rate limits, a health
   check and HTTPS settings.
-- Grew the test suite to 267 tests, added a browser smoke test and ran the
+- Grew the test suite to 287 tests, added a browser smoke test and ran the
   backend tests on both SQLite and PostgreSQL in CI.
 
 ## Screenshots
@@ -362,16 +371,18 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # browser test against a running app
 ```
 
-The backend has 160 tests with 95% coverage. They cover the API, cookie
+The backend has 176 tests with 95% coverage. They cover the API, cookie
 authentication and CSRF, checkout, cancellation, both payment providers
-including webhook signatures, shipping and tax quotes, full and partial refunds
-and their retries, the scheduler, currencies managed in the admin, full-text
-search, machine translation and its review, the number of SQL queries and rate
-limits. CI runs them on SQLite and on PostgreSQL. The frontend has 107 tests
-with 95% coverage for the checkout, pages, the payment form, router guards, the
-API client, currencies and translations. The smoke test signs in, buys a book
-with delivery to Germany, pays with a declined and a working test card, cancels
-the order to get a refund and checks that no token is readable from JavaScript.
+including webhook signatures, shipping by weight, tax by country, state and ZIP
+code, full and partial refunds and their retries, the scheduler, currencies
+managed in the admin, full-text search, machine translation and its review, the
+number of SQL queries and rate limits. CI runs them on SQLite and on
+PostgreSQL. The frontend has 111 tests with 95% coverage for the checkout,
+pages, the payment form, router guards, the API client, currencies and
+translations. The smoke test signs in, checks the New York City sales tax, buys
+a book with delivery to Germany, pays with a declined and a working test card,
+cancels the order to get a refund and checks that no token is readable from
+JavaScript.
 
 Screenshots for all languages are taken from a running app with
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -380,10 +391,11 @@ Screenshots for all languages are taken from a running app with
 
 Known limits of the current version.
 
-- Tax is set per country. US sales tax, which depends on the state and the
-  city, is not calculated.
-- Shipping has a fixed price per order and method. It does not depend on the
-  weight or the number of books.
+- Tax rates are entered by hand in the admin. There is no connection to a tax
+  service such as Stripe Tax, so the local rates of US cities other than New
+  York and Chicago have to be added as rows.
+- A heavy order that fits no method is refused, and the customer is asked to
+  split it. The shop doesn't split parcels itself.
 
 ## Project structure
 

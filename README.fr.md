@@ -74,12 +74,19 @@ l'appeler. Une commande passe par ces statuts.
 Les frais de port et les taxes viennent de tables modifiables dans
 l'administration. Voici les valeurs par défaut.
 
-| Zone | Livraison | Gratuite dès | Taxe sur les livres |
-|---|---|---|---|
-| États-Unis | Standard $4.99, express $14.99 | $35 | aucune (la taxe des États n'est pas calculée) |
-| Union européenne | Standard $6.99, express $19.99 | $50 | TVA réduite, par exemple 7 % en Allemagne et 5,5 % en France |
-| Russie | Poste russe $5.99, coursier $11.99 | $40 | 10 % |
-| Reste du monde | International $12.99 | $80 | aucune |
+| Zone | Livraison, premier kg | Chaque kg en plus | Gratuite dès | Taxe sur les livres |
+|---|---|---|---|---|
+| États-Unis | Standard $4.99, express $14.99 | $1.50, $4.00 | $35 | taxe de l'État, par exemple 7,25 % en Californie et 8,875 % à New York |
+| Union européenne | Standard $6.99, express $19.99 | $2.00, $5.00 | $50 | TVA réduite, par exemple 7 % en Allemagne et 5,5 % en France |
+| Russie | Poste russe $5.99, coursier $11.99 | $1.50, $3.00 | $40 | 10 % |
+| Reste du monde | International $12.99 | $6.00 | $80 | aucune |
+
+Chaque livre a un poids. Un mode de livraison facture son prix de base pour le
+premier kilo et un montant fixe pour chaque kilo entamé au-delà, et l'express
+accepte les colis jusqu'à 10 kg. Un taux de taxe couvre un pays, un État ou une
+plage de codes postaux, et le plus précis l'emporte. Les valeurs par défaut
+contiennent les taux de tous les États américains et les taux combinés de New
+York et de Chicago. Chaque taux indique aussi si la livraison est taxée.
 
 La commande se fait dans une seule transaction. Les lignes des livres sont
 d'abord verrouillées, puis le stock est vérifié.
@@ -110,10 +117,12 @@ with transaction.atomic():
   insuffisant. Le fournisseur Stripe crée une Checkout Session, et seule la
   notification Stripe signée marque la commande comme payée. Les notifications
   répétées ne changent rien.
-- Le serveur calcule les frais de port et la taxe pour le pays et le mode
-  choisis, dans la devise choisie. La taxe porte sur les livres et sur la
-  livraison. La commande garde l'adresse, le mode de livraison avec son délai
-  et tous les montants, donc un changement de prix ultérieur ne la touche pas.
+- Le serveur calcule les frais de port et la taxe pour l'adresse et le mode
+  choisis, dans la devise choisie. Le prix suit le poids des livres, un mode
+  disparaît quand le colis dépasse sa limite, et la taxe dépend du pays, de
+  l'État américain ou du code postal. La commande garde l'adresse, le mode de
+  livraison avec son délai, le poids et tous les montants, donc un changement
+  de prix ultérieur ne la touche pas.
 - Chaque remboursement est une ligne à part avec un montant et un motif, donc
   un paiement peut être remboursé en plusieurs fois. L'équipe rembourse
   n'importe quel montant depuis l'administration, et l'annulation d'une
@@ -253,7 +262,8 @@ apporté ces changements.
 - Annulation des commandes, filtres du catalogue et panier avec un nombre fixe
   de requêtes.
 - Page de commande avec adresse de livraison, zones et modes de livraison, et
-  taxes par pays.
+  taxes par pays, par État américain et par code postal, avec des frais de port
+  au poids.
 - Paiement par carte avec un fournisseur de démo et Stripe Checkout, avec
   remboursements complets et partiels.
 - Liste des devises gérée dans l'administration.
@@ -271,7 +281,7 @@ apporté ces changements.
   et de vraies couvertures pour les livres de démo.
 - Documentation de l'API avec OpenAPI et Swagger UI, limites de débit, health
   check et réglages HTTPS.
-- 267 tests, un test de fumée dans le navigateur, et les tests du backend
+- 287 tests, un test de fumée dans le navigateur, et les tests du backend
   tournent en CI sur SQLite et sur PostgreSQL.
 
 ## Captures d'écran
@@ -385,16 +395,17 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # test dans le navigateur sur l'application lancée
 ```
 
-Le backend a 160 tests avec 95 % de couverture. Ils vérifient l'API,
+Le backend a 176 tests avec 95 % de couverture. Ils vérifient l'API,
 l'authentification par cookies et le CSRF, la commande, l'annulation, les deux
-fournisseurs de paiement avec la signature du webhook, le calcul des frais de
-port et des taxes, les remboursements complets et partiels et leurs relances,
-le planificateur, les devises gérées dans l'administration, la recherche plein
-texte, la traduction automatique et sa relecture, le nombre de requêtes SQL et
-les limites de débit. La CI les lance sur SQLite et sur PostgreSQL. Le frontend
-a 107 tests avec 95 % de couverture pour la page de commande, les pages, le
-formulaire de paiement, les contrôles du routeur, le client API, les devises et
-les traductions. Le test de fumée se connecte, achète un livre livré en
+fournisseurs de paiement avec la signature du webhook, la livraison au poids,
+les taxes par pays, État et code postal, les remboursements complets et
+partiels et leurs relances, le planificateur, les devises gérées dans
+l'administration, la recherche plein texte, la traduction automatique et sa
+relecture, le nombre de requêtes SQL et les limites de débit. La CI les lance
+sur SQLite et sur PostgreSQL. Le frontend a 111 tests avec 95 % de couverture
+pour la page de commande, les pages, le formulaire de paiement, les contrôles
+du routeur, le client API, les devises et les traductions. Le test de fumée se
+connecte, vérifie la taxe de vente de New York, achète un livre livré en
 Allemagne, paie avec une carte refusée puis avec une carte valide, annule la
 commande pour être remboursé et vérifie qu'aucun jeton n'est lisible depuis
 JavaScript.
@@ -406,10 +417,11 @@ avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
 Ce qui manque dans la version actuelle.
 
-- La taxe est fixée par pays. La taxe de vente américaine, qui dépend de
-  l'État et de la ville, n'est pas calculée.
-- Les frais de port sont fixes pour une commande et un mode de livraison. Ils
-  ne dépendent ni du poids ni du nombre de livres.
+- Les taux de taxe se saisissent à la main dans l'administration. Il n'y a pas
+  de lien avec un service fiscal comme Stripe Tax, donc les taux locaux des
+  villes américaines autres que New York et Chicago s'ajoutent ligne par ligne.
+- Une commande trop lourde pour tous les modes est refusée, et le client doit
+  la diviser. La boutique ne répartit pas elle-même les colis.
 
 ## Structure du projet
 

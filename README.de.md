@@ -73,12 +73,20 @@ Eine Bestellung durchläuft diese Status.
 Versand und Steuern kommen aus Tabellen, die Mitarbeitende im Admin pflegen.
 Das sind die Standardwerte.
 
-| Zone | Versand | Kostenlos ab | Steuer auf Bücher |
-|---|---|---|---|
-| USA | Standard $4.99, Express $14.99 | $35 | keine (Sales Tax der Bundesstaaten wird nicht erhoben) |
-| Europäische Union | Standard $6.99, Express $19.99 | $50 | ermäßigte MwSt., etwa 7 % in Deutschland und 5,5 % in Frankreich |
-| Russland | Russische Post $5.99, Kurier $11.99 | $40 | 10 % |
-| Rest der Welt | International $12.99 | $80 | keine |
+| Zone | Versand, erstes kg | Jedes weitere kg | Kostenlos ab | Steuer auf Bücher |
+|---|---|---|---|---|
+| USA | Standard $4.99, Express $14.99 | $1.50, $4.00 | $35 | Sales Tax des Bundesstaats, etwa 7,25 % in Kalifornien und 8,875 % in New York City |
+| Europäische Union | Standard $6.99, Express $19.99 | $2.00, $5.00 | $50 | ermäßigte MwSt., etwa 7 % in Deutschland und 5,5 % in Frankreich |
+| Russland | Russische Post $5.99, Kurier $11.99 | $1.50, $3.00 | $40 | 10 % |
+| Rest der Welt | International $12.99 | $6.00 | $80 | keine |
+
+Jedes Buch hat ein Gewicht. Eine Versandart berechnet ihren Grundpreis für das
+erste Kilogramm und einen festen Betrag für jedes weitere angefangene
+Kilogramm, und Express nimmt Pakete bis 10 kg. Ein Steuersatz gilt für ein
+Land, einen Bundesstaat oder einen Bereich von Postleitzahlen, und der
+genaueste gewinnt. Ab Werk sind die Sätze aller US-Bundesstaaten und die
+kombinierten Stadtsätze von New York City und Chicago angelegt. Jeder Satz legt
+auch fest, ob der Versand besteuert wird.
 
 Die Bestellung läuft in einer Transaktion. Zuerst werden die Buchzeilen
 gesperrt, danach wird der Bestand geprüft.
@@ -108,10 +116,12 @@ with transaction.atomic():
   Erfolg, Ablehnung und fehlende Deckung. Der Stripe-Anbieter legt eine
   Checkout Session an, und erst der signierte Stripe-Webhook markiert die
   Bestellung als bezahlt. Doppelte Webhooks ändern nichts.
-- Der Server berechnet Versand und Steuer für das gewählte Land und die
-  Versandart in der gewählten Währung. Die Steuer gilt für Bücher und Versand.
-  Die Bestellung speichert Adresse, Versandart mit Lieferzeit und alle Beträge,
-  spätere Preisänderungen berühren sie also nicht.
+- Der Server berechnet Versand und Steuer für Adresse und Versandart in der
+  gewählten Währung. Der Preis folgt dem Gewicht der Bücher, eine Versandart
+  entfällt, wenn das Paket über ihrem Limit liegt, und die Steuer ergibt sich
+  aus Land, US-Bundesstaat oder Postleitzahl. Die Bestellung speichert Adresse,
+  Versandart mit Lieferzeit, Gewicht und alle Beträge, spätere Preisänderungen
+  berühren sie also nicht.
 - Jede Erstattung ist eine eigene Zeile mit Betrag und Grund, daher lässt sich
   eine Zahlung in Teilen erstatten. Mitarbeitende erstatten im Admin jeden
   Betrag, und eine Stornierung erstattet den Rest. Geld, das für eine bereits
@@ -243,7 +253,8 @@ Später wurde es in eine REST-API und ein Vue-Frontend aufgeteilt. Die
   PostCSS, React-Typen, Analytics und Platzhalterbilder.
 - Stornierung, Katalogfilter und ein Warenkorb mit fester Zahl an Abfragen.
 - Eine Bestellseite mit Lieferadresse, Versandzonen und Versandarten sowie
-  Steuern nach Land.
+  Steuern nach Land, US-Bundesstaat und Postleitzahl, dazu Versand nach
+  Gewicht.
 - Kartenzahlung mit einem Demo-Anbieter und Stripe Checkout, mit vollen und
   teilweisen Erstattungen.
 - Die Liste der Währungen wird im Admin gepflegt.
@@ -261,7 +272,7 @@ Später wurde es in eine REST-API und ein Vue-Frontend aufgeteilt. Die
   Covern für die Demo-Bücher.
 - API-Dokumentation mit OpenAPI und Swagger UI, Ratenlimits, Health Check und
   HTTPS-Einstellungen.
-- 267 Tests, ein Smoke-Test im Browser, und die Backend-Tests laufen in der CI
+- 287 Tests, ein Smoke-Test im Browser, und die Backend-Tests laufen in der CI
   auf SQLite und auf PostgreSQL.
 
 ## Screenshots
@@ -375,15 +386,16 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # Browsertest gegen die laufende App
 ```
 
-Das Backend hat 160 Tests mit 95 % Abdeckung. Sie prüfen API, Cookie-Anmeldung
-und CSRF, Bestellung, Stornierung, beide Zahlungsanbieter samt Webhook-
-Signatur, die Berechnung von Versand und Steuer, volle und teilweise
-Erstattungen und ihre Wiederholung, den Planer, im Admin gepflegte Währungen,
-Volltextsuche, maschinelle Übersetzung und ihre Prüfung, die Zahl der SQL-
-Abfragen und Ratenlimits. Die CI führt sie auf SQLite und auf PostgreSQL aus.
-Das Frontend hat 107 Tests mit 95 % Abdeckung für die Bestellseite, Seiten, das
-Zahlungsformular, Router-Prüfungen, den API-Client, Währungen und
-Übersetzungen. Der Smoke-Test meldet sich an, kauft ein Buch mit Lieferung nach
+Das Backend hat 176 Tests mit 95 % Abdeckung. Sie prüfen API, Cookie-Anmeldung
+und CSRF, Bestellung, Stornierung, beide Zahlungsanbieter samt
+Webhook-Signatur, Versand nach Gewicht, Steuern nach Land, Bundesstaat und
+Postleitzahl, volle und teilweise Erstattungen und ihre Wiederholung, den
+Planer, im Admin gepflegte Währungen, Volltextsuche, maschinelle Übersetzung
+und ihre Prüfung, die Zahl der SQL-Abfragen und Ratenlimits. Die CI führt sie
+auf SQLite und auf PostgreSQL aus. Das Frontend hat 111 Tests mit 95 %
+Abdeckung für die Bestellseite, Seiten, das Zahlungsformular, Router-Prüfungen,
+den API-Client, Währungen und Übersetzungen. Der Smoke-Test meldet sich an,
+prüft die Sales Tax von New York City, kauft ein Buch mit Lieferung nach
 Deutschland, bezahlt erst mit einer abgelehnten, dann mit einer gültigen
 Testkarte, storniert die Bestellung für eine Erstattung und prüft, dass
 JavaScript kein Token lesen kann.
@@ -395,10 +407,11 @@ Screenshots in allen Sprachen entstehen an der laufenden App mit
 
 Was in der aktuellen Version fehlt.
 
-- Die Steuer gilt pro Land. Die US-Sales-Tax, die von Bundesstaat und Stadt
-  abhängt, wird nicht berechnet.
-- Der Versand hat einen festen Preis pro Bestellung und Versandart. Er hängt
-  nicht vom Gewicht oder der Zahl der Bücher ab.
+- Steuersätze werden im Admin von Hand gepflegt. Es gibt keine Anbindung an
+  einen Steuerdienst wie Stripe Tax, daher müssen lokale Sätze anderer
+  US-Städte als New York und Chicago als Zeilen ergänzt werden.
+- Eine Bestellung, die für jede Versandart zu schwer ist, wird abgelehnt, und
+  die Kundschaft soll sie aufteilen. Der Shop teilt Pakete nicht selbst auf.
 
 ## Projektstruktur
 
