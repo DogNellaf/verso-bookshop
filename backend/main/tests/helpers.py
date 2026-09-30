@@ -59,7 +59,8 @@ def checkout_payload(**overrides):
         "full_name": "Test User",
         "address_line1": "1 Main Street",
         "city": "Springfield",
-        "postal_code": "12345",
+        "region": "OR",  # no sales tax
+        "postal_code": "97403",
         "country": "US",
         "shipping_method": "standard",
     }

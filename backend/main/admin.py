@@ -115,12 +115,20 @@ class TranslationStatusFilter(admin.SimpleListFilter):
 
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
-    list_display = ("cover_thumb", "title", "author", "price", "stock", "translation_status")
+    list_display = (
+        "cover_thumb",
+        "title",
+        "author",
+        "price",
+        "stock",
+        "weight",
+        "translation_status",
+    )
     list_display_links = ("cover_thumb", "title")
     search_fields = ("title", "author")
     list_filter = (StockFilter, TranslationStatusFilter, "author")
     actions = ("translate_missing",)
-    list_editable = ("price", "stock")
+    list_editable = ("price", "stock", "weight")
     readonly_fields = ("cover_preview",)
     inlines = (BookTranslationInline,)
 
@@ -250,10 +258,11 @@ class OrderAdmin(admin.ModelAdmin):
                 "fields": (
                     "shipping_method",
                     ("delivery_min_days", "delivery_max_days"),
+                    "shipping_weight",
                     "full_name",
                     "address_line1",
                     "address_line2",
-                    ("city", "postal_code", "country"),
+                    ("city", "region", "postal_code", "country"),
                     "phone",
                 )
             },
@@ -271,6 +280,7 @@ class OrderAdmin(admin.ModelAdmin):
         "shipping_method",
         "delivery_min_days",
         "delivery_max_days",
+        "shipping_weight",
         "created_at",
     )
     list_editable = ("status",)
@@ -457,7 +467,18 @@ class JobRunAdmin(admin.ModelAdmin):
 class ShippingMethodInline(admin.TabularInline):
     model = ShippingMethod
     extra = 0
-    fields = ("code", "names", "price", "free_from", "min_days", "max_days", "active", "position")
+    fields = (
+        "code",
+        "names",
+        "price",
+        "per_kg",
+        "max_weight",
+        "free_from",
+        "min_days",
+        "max_days",
+        "active",
+        "position",
+    )
 
 
 @admin.register(ShippingZone)
@@ -476,5 +497,6 @@ class ShippingZoneAdmin(admin.ModelAdmin):
 
 @admin.register(TaxRate)
 class TaxRateAdmin(admin.ModelAdmin):
-    list_display = ("country", "rate", "name")
-    search_fields = ("country",)
+    list_display = ("country", "region", "postal_prefix", "rate", "name", "tax_shipping")
+    list_filter = ("country", "tax_shipping")
+    search_fields = ("country", "region", "postal_prefix")

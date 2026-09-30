@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Verso 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 19:51+0000\n"
+"POT-Creation-Date: 2026-09-30 20:22+0000\n"
 "PO-Revision-Date: 2026-09-30 17:10+0000\n"
 "Last-Translator: Verso team\n"
 "Language-Team: Verso team\n"
@@ -14,61 +14,87 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: main/checkout.py:105
 msgid "Sorry, we don't ship to this country."
 msgstr "Leider liefern wir nicht in dieses Land."
 
-msgid "This shipping method isn't available for the country."
-msgstr "Diese Versandart ist für dieses Land nicht verfügbar."
+#: main/checkout.py:111
+msgid "This order is too heavy to ship in one parcel. Please split it."
+msgstr "Diese Bestellung ist für ein Paket zu schwer. Bitte teilen Sie sie auf."
 
+#: main/checkout.py:122
+msgid "This shipping method isn't available for the order."
+msgstr "Diese Versandart ist für die Bestellung nicht verfügbar."
+
+#: main/orders.py:28
+msgid "Orders that have been shipped can no longer be cancelled."
+msgstr "Versandte Bestellungen können nicht mehr storniert werden."
+
+#: main/payment_views.py:68
 msgid "Only pending orders can be paid."
 msgstr "Nur ausstehende Bestellungen können bezahlt werden."
 
+#: main/payment_views.py:93
 msgid "This payment is already finished."
 msgstr "Diese Zahlung ist bereits abgeschlossen."
 
+#: main/payments/demo.py:37
 msgid "The card number is not valid."
 msgstr "Die Kartennummer ist ungültig."
 
+#: main/payments/demo.py:41
 msgid "Enter the expiry date as MM/YY."
 msgstr "Geben Sie das Ablaufdatum als MM/JJ ein."
 
+#: main/payments/demo.py:47
 msgid "The card has expired."
 msgstr "Die Karte ist abgelaufen."
 
+#: main/payments/demo.py:50
 msgid "Enter the 3 or 4 digit security code."
 msgstr "Geben Sie den 3- oder 4-stelligen Sicherheitscode ein."
 
+#: main/payments/demo.py:71
 msgid "Your card was declined."
 msgstr "Ihre Karte wurde abgelehnt."
 
+#: main/payments/demo.py:73
 msgid "Your card has insufficient funds."
 msgstr "Ihre Karte ist nicht ausreichend gedeckt."
 
+#: main/payments/services.py:99
 msgid "This payment has nothing left to refund."
 msgstr "Für diese Zahlung ist nichts mehr zu erstatten."
 
+#: main/payments/services.py:103
 #, python-format
 msgid "You can refund at most %(amount)s %(currency)s."
 msgstr "Sie können höchstens %(amount)s %(currency)s erstatten."
 
+#: main/serializers.py:176
 msgid "Choose a country from the list."
 msgstr "Wählen Sie ein Land aus der Liste."
 
+#: main/serializers.py:191
+msgid "Choose a state from the list."
+msgstr "Wählen Sie einen Bundesstaat aus der Liste."
+
+#: main/views.py:35
 #, python-format
 msgid "“%(title)s” is out of stock."
 msgstr "„%(title)s“ ist nicht vorrätig."
 
+#: main/views.py:37
 #, python-format
 msgid "Only %(count)d copy of “%(title)s” is in stock."
 msgid_plural "Only %(count)d copies of “%(title)s” are in stock."
 msgstr[0] "Von „%(title)s“ ist nur noch %(count)d Exemplar vorrätig."
 msgstr[1] "Von „%(title)s“ sind nur noch %(count)d Exemplare vorrätig."
 
+#: main/views.py:260 main/views.py:289
 msgid "Your cart is empty."
 msgstr "Ihr Warenkorb ist leer."
 
+#: main/views.py:303
 msgid "Not enough stock."
 msgstr "Nicht genügend Bestand."
-
-msgid "Orders that have been shipped can no longer be cancelled."
-msgstr "Versandte Bestellungen können nicht mehr storniert werden."

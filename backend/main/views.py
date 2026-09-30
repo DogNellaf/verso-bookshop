@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from main import checkout, currency
+from main.countries import REGIONS
 from main.filters import BookFilter
 from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
 from main.orders import CannotCancel, cancel_order
@@ -204,6 +205,7 @@ ADDRESS_FIELDS = (
     "address_line1",
     "address_line2",
     "city",
+    "region",
     "postal_code",
     "country",
     "phone",
@@ -221,13 +223,27 @@ class CheckoutInfoView(APIView):
             {
                 "countries": serializers.ListField(child=serializers.CharField(), allow_null=True),
                 "saved_address": AddressSerializer(allow_null=True),
+                "regions": serializers.DictField(
+                    child=serializers.ListField(child=serializers.DictField()),
+                    help_text="Countries whose address needs a region from a list",
+                ),
             },
         )
     )
     def get(self, request):
         last = Order.objects.filter(buyer=request.user).exclude(country="").first()
         saved = {f: getattr(last, f) for f in ADDRESS_FIELDS} if last else None
-        return Response({"countries": checkout.shipping_countries(), "saved_address": saved})
+        regions = {
+            country: [{"code": code, "name": name} for code, name in choices.items()]
+            for country, choices in REGIONS.items()
+        }
+        return Response(
+            {
+                "countries": checkout.shipping_countries(),
+                "saved_address": saved,
+                "regions": regions,
+            }
+        )
 
 
 class QuoteView(APIView):
@@ -247,6 +263,8 @@ class QuoteView(APIView):
             data.validated_data["country"],
             data.validated_data.get("shipping_method") or None,
             current_language(),
+            data.validated_data["region"],
+            data.validated_data.get("postal_code", ""),
         )
         return Response(QuoteSerializer(result).data)
 
@@ -289,6 +307,8 @@ class CheckoutView(APIView):
                 data["country"],
                 data["shipping_method"],
                 current_language(),
+                data["region"],
+                data["postal_code"],
             )
             order = Order.objects.create(
                 buyer=request.user,
@@ -300,6 +320,7 @@ class CheckoutView(APIView):
                 shipping_method=priced.method.name,
                 delivery_min_days=priced.method.min_days,
                 delivery_max_days=priced.method.max_days,
+                shipping_weight=priced.weight,
                 **{f: data.get(f, "") for f in ADDRESS_FIELDS},
             )
             order_items = []

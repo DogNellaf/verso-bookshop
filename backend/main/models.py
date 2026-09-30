@@ -1,4 +1,5 @@
 import decimal
+import math
 
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -19,6 +20,12 @@ class Book(models.Model):
         verbose_name="Price",
     )
     stock = models.PositiveIntegerField(default=0, verbose_name="Stock")
+    weight = models.PositiveIntegerField(
+        default=400,
+        validators=[MinValueValidator(1)],
+        verbose_name="Weight (g)",
+        help_text="Shipping weight with packaging.",
+    )
     cover = models.ImageField(upload_to="covers/", blank=True, null=True, verbose_name="Cover")
     # Maintained by main.search. Titles and authors in every language, and on
     # PostgreSQL a full-text vector of the book and its translations.
@@ -145,6 +152,10 @@ def validate_country(code):
         raise ValidationError(f"{code} is not an ISO 3166 country code.")
 
 
+def normalize_postal(code):
+    return "".join(code.split()).upper()
+
+
 def validate_country_list(value):
     for code in value:
         validate_country(code)
@@ -190,6 +201,20 @@ class ShippingMethod(models.Model):
         verbose_name="Free from (USD)",
         help_text="Orders at or above this subtotal ship free.",
     )
+    per_kg = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=decimal.Decimal("0.00"),
+        validators=[MinValueValidator(decimal.Decimal("0"))],
+        verbose_name="Per extra kg (USD)",
+        help_text="Added for every started kilogram above the first.",
+    )
+    max_weight = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Max weight (g)",
+        help_text="Heavier orders can't use this method. Empty means no limit.",
+    )
     min_days = models.PositiveSmallIntegerField(default=3, verbose_name="Delivery from (days)")
     max_days = models.PositiveSmallIntegerField(default=7, verbose_name="Delivery to (days)")
     active = models.BooleanField(default=True, verbose_name="Active")
@@ -209,28 +234,67 @@ class ShippingMethod(models.Model):
     def name(self, language="en"):
         return self.names.get(language) or self.names.get("en") or self.code
 
+    def fits(self, weight):
+        return self.max_weight is None or weight <= self.max_weight
+
+    def price_for(self, weight):
+        """Base price plus ``per_kg`` for each started kilogram above the first."""
+        extra_kg = max(0, math.ceil(weight / 1000) - 1)
+        return self.price + self.per_kg * extra_kg
+
 
 class TaxRate(models.Model):
-    """Tax added to orders shipped to a country (book rates, often reduced)."""
+    """Tax added to orders shipped to a country, a region or a postal area.
 
-    country = models.CharField(
-        max_length=2, primary_key=True, validators=[validate_country], verbose_name="Country"
+    The most specific rate that matches the address wins. A rate with a
+    postal prefix beats a region rate, which beats a country-wide one. So a
+    US state gets its state rate, and a city with local sales tax gets a row
+    with its combined rate and the ZIP prefix.
+    """
+
+    country = models.CharField(max_length=2, validators=[validate_country], verbose_name="Country")
+    region = models.CharField(
+        max_length=10,
+        blank=True,
+        verbose_name="Region",
+        help_text="State or province code, e.g. CA. Empty means the whole country.",
+    )
+    postal_prefix = models.CharField(
+        max_length=10,
+        blank=True,
+        verbose_name="Postal code prefix",
+        help_text="Matches postal codes starting with it, e.g. 100 for Manhattan.",
     )
     rate = models.DecimalField(
         max_digits=5,
-        decimal_places=2,
+        decimal_places=3,
         validators=[MinValueValidator(decimal.Decimal("0")), MaxValueValidator(100)],
         verbose_name="Rate, %",
     )
     name = models.CharField(max_length=40, default="VAT", verbose_name="Name")
+    tax_shipping = models.BooleanField(
+        default=True, verbose_name="Tax shipping", help_text="Apply the rate to shipping too."
+    )
 
     class Meta:
         verbose_name = "Tax rate"
         verbose_name_plural = "Tax rates"
-        ordering = ["country"]
+        ordering = ["country", "region", "postal_prefix"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["country", "region", "postal_prefix"], name="unique_tax_rate_scope"
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.country} {self.rate}%"
+        scope = "-".join(p for p in (self.country, self.region, self.postal_prefix) if p)
+        return f"{scope} {self.rate.normalize()}%"
+
+    def save(self, *args, **kwargs):
+        self.country = self.country.upper()
+        self.region = self.region.upper().strip()
+        self.postal_prefix = normalize_postal(self.postal_prefix)
+        super().save(*args, **kwargs)
 
 
 class Cart(models.Model):
@@ -328,7 +392,7 @@ class Order(models.Model):
         max_digits=12, decimal_places=2, default=decimal.Decimal("0.00"), verbose_name="Shipping"
     )
     tax_rate = models.DecimalField(
-        max_digits=5, decimal_places=2, default=decimal.Decimal("0.00"), verbose_name="Tax rate, %"
+        max_digits=5, decimal_places=3, default=decimal.Decimal("0.00"), verbose_name="Tax rate, %"
     )
     tax_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=decimal.Decimal("0.00"), verbose_name="Tax"
@@ -337,10 +401,12 @@ class Order(models.Model):
     shipping_method = models.CharField(max_length=100, blank=True, verbose_name="Shipping method")
     delivery_min_days = models.PositiveSmallIntegerField(null=True, blank=True)
     delivery_max_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    shipping_weight = models.PositiveIntegerField(default=0, verbose_name="Weight (g)")
     full_name = models.CharField(max_length=150, blank=True, verbose_name="Full name")
     address_line1 = models.CharField(max_length=200, blank=True, verbose_name="Address")
     address_line2 = models.CharField(max_length=200, blank=True, verbose_name="Address, line 2")
     city = models.CharField(max_length=100, blank=True, verbose_name="City")
+    region = models.CharField(max_length=100, blank=True, verbose_name="State or region")
     postal_code = models.CharField(max_length=20, blank=True, verbose_name="Postal code")
     country = models.CharField(max_length=2, blank=True, verbose_name="Country")
     phone = models.CharField(max_length=30, blank=True, verbose_name="Phone")

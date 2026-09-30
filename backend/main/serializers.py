@@ -56,6 +56,7 @@ class BookSerializer(serializers.ModelSerializer):
             "price",
             "currency",
             "stock",
+            "weight",
             "cover",
             "in_stock",
         ]
@@ -152,22 +153,56 @@ class AddressSerializer(serializers.Serializer):
     address_line1 = serializers.CharField(max_length=200)
     address_line2 = serializers.CharField(max_length=200, required=False, allow_blank=True)
     city = serializers.CharField(max_length=100)
+    region = serializers.CharField(
+        max_length=100, required=False, allow_blank=True, help_text="State code in the US"
+    )
     postal_code = serializers.CharField(max_length=20)
     country = serializers.CharField(max_length=2)
     phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
 
     def validate_country(self, value):
-        from main.countries import COUNTRY_CODES
+        return valid_country(value)
 
-        value = value.upper()
-        if value not in COUNTRY_CODES:
-            raise serializers.ValidationError(_("Choose a country from the list."))
-        return value
+    def validate(self, attrs):
+        attrs["region"] = valid_region(attrs["country"], attrs.get("region", ""), required=True)
+        return attrs
+
+
+def valid_country(value):
+    from main.countries import COUNTRY_CODES
+
+    value = value.upper()
+    if value not in COUNTRY_CODES:
+        raise serializers.ValidationError(_("Choose a country from the list."))
+    return value
+
+
+def valid_region(country, region, required):
+    """Regions of countries with a fixed list are codes from it."""
+    from main.countries import REGIONS
+
+    region = (region or "").strip()
+    choices = REGIONS.get(country)
+    if not choices:
+        return region
+    region = region.upper()
+    if region in choices or (not region and not required):
+        return region
+    raise serializers.ValidationError({"region": _("Choose a state from the list.")})
 
 
 class QuoteRequestSerializer(serializers.Serializer):
     country = serializers.CharField(max_length=2)
+    region = serializers.CharField(required=False, allow_blank=True)
+    postal_code = serializers.CharField(required=False, allow_blank=True, max_length=20)
     shipping_method = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_country(self, value):
+        return valid_country(value)
+
+    def validate(self, attrs):
+        attrs["region"] = valid_region(attrs["country"], attrs.get("region", ""), required=False)
+        return attrs
 
 
 class CheckoutSerializer(AddressSerializer):
@@ -187,10 +222,11 @@ class QuoteSerializer(serializers.Serializer):
     currency = serializers.CharField()
     subtotal = serializers.DecimalField(max_digits=12, decimal_places=2)
     shipping = serializers.DecimalField(max_digits=12, decimal_places=2)
-    tax_rate = serializers.DecimalField(max_digits=5, decimal_places=2)
+    tax_rate = serializers.DecimalField(max_digits=6, decimal_places=3)
     tax_name = serializers.CharField()
     tax = serializers.DecimalField(max_digits=12, decimal_places=2)
     total = serializers.DecimalField(max_digits=12, decimal_places=2)
+    weight = serializers.IntegerField(help_text="Grams")
     method = MethodQuoteSerializer()
     methods = MethodQuoteSerializer(many=True)
 
@@ -247,10 +283,12 @@ class OrderSerializer(serializers.ModelSerializer):
             "shipping_method",
             "delivery_min_days",
             "delivery_max_days",
+            "shipping_weight",
             "full_name",
             "address_line1",
             "address_line2",
             "city",
+            "region",
             "postal_code",
             "country",
             "phone",

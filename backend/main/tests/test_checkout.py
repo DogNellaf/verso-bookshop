@@ -4,6 +4,7 @@ from unittest import mock
 from django.urls import reverse
 from rest_framework import status
 
+from main import checkout as checkout_module
 from main.models import Currency, Order, ShippingMethod, ShippingZone, TaxRate
 from main.tests.helpers import AuthedAPITestCase, checkout, make_book
 
@@ -13,7 +14,7 @@ class CheckoutTestCase(AuthedAPITestCase):
 
     def setUp(self):
         super().setUp()
-        self.book = make_book(title="Dune", price=Decimal("10.00"), stock=10)
+        self.book = make_book(title="Dune", price=Decimal("10.00"), stock=10, weight=250)
 
     def add(self, quantity):
         self.client.post(reverse("api_cart_items"), {"book": self.book.pk, "quantity": quantity})
@@ -48,7 +49,7 @@ class QuoteTest(CheckoutTestCase):
         data = self.quote("DE").data
         # $20 + $6.99 shipping, 7% on both.
         self.assertEqual(data["shipping"], "6.99")
-        self.assertEqual((data["tax_rate"], data["tax"]), ("7.00", "1.89"))
+        self.assertEqual((data["tax_rate"], data["tax"]), ("7.000", "1.89"))
         self.assertEqual(data["total"], "28.88")
 
     def test_rest_of_the_world(self):
@@ -64,7 +65,7 @@ class QuoteTest(CheckoutTestCase):
         self.assertEqual(data["subtotal"], "900.00")
         self.assertEqual(data["shipping"], "539.10")
         self.assertEqual(data["method"]["name"], "Почта России")
-        self.assertEqual((data["tax_rate"], data["tax"]), ("10.00", "143.91"))
+        self.assertEqual((data["tax_rate"], data["tax"]), ("10.000", "143.91"))
 
     def test_country_that_is_not_served(self):
         ShippingZone.objects.filter(countries=[]).delete()
@@ -102,7 +103,7 @@ class CheckoutWithAddressTest(CheckoutTestCase):
         self.assertEqual((order.city, order.country, order.phone), ("Berlin", "DE", "+49 30 123"))
         self.assertEqual(order.shipping_method, "Standard")
         self.assertEqual((order.delivery_min_days, order.delivery_max_days), (4, 8))
-        self.assertEqual(response.data["tax_rate"], "7.00")
+        self.assertEqual(response.data["tax_rate"], "7.000")
 
     def test_address_is_required(self):
         self.add(1)
@@ -153,3 +154,127 @@ class CheckoutWithAddressTest(CheckoutTestCase):
         amounts = [line["price_data"]["unit_amount"] * line["quantity"] for line in lines]
         self.assertEqual(sum(amounts), 2888)
         self.assertEqual(lines[1]["price_data"]["product_data"]["name"], "Standard")
+
+
+class RegionalTaxTest(CheckoutTestCase):
+    def rate(self, region="", postal=""):
+        rate = checkout_module.tax_rate_for("US", region, postal)
+        return rate.rate if rate else None
+
+    def test_most_specific_rate_wins(self):
+        self.assertEqual(self.rate("CA", "94103"), Decimal("7.25"))
+        self.assertEqual(self.rate("NY", "10001"), Decimal("8.875"))  # Manhattan
+        self.assertEqual(self.rate("NY", "14201"), Decimal("4"))  # Buffalo, state rate only
+        self.assertEqual(self.rate("IL", "60601"), Decimal("10.25"))  # Chicago
+        self.assertIsNone(self.rate("OR", "97403"))  # no sales tax
+        self.assertIsNone(self.rate())  # state unknown yet
+
+    def test_postal_codes_are_normalized(self):
+        TaxRate.objects.create(country="GB", postal_prefix="sw1 a", rate=Decimal("1"))
+        rate = checkout_module.tax_rate_for("GB", "", " SW1A 1AA")
+        self.assertEqual(str(rate), "GB-SW1A 1%")
+
+    def test_a_country_rate_is_the_fallback(self):
+        TaxRate.objects.create(country="CA", rate=Decimal("5"), name="GST")
+        TaxRate.objects.create(country="CA", region="ON", rate=Decimal("13"), name="HST")
+        self.assertEqual(checkout_module.tax_rate_for("CA", "on").rate, Decimal("13"))
+        self.assertEqual(checkout_module.tax_rate_for("CA", "QC").rate, Decimal("5"))
+
+    def test_state_sales_tax_on_books_and_shipping(self):
+        self.add(2)
+        data = self.quote_for("US", region="CA", postal_code="94103")
+        # 7.25% of $20 + $4.99
+        self.assertEqual((data["tax_rate"], data["tax"]), ("7.250", "1.81"))
+        self.assertEqual(data["tax_name"], "Sales tax")
+
+    def test_rate_can_leave_shipping_untaxed(self):
+        TaxRate.objects.filter(country="US", region="CA").update(tax_shipping=False)
+        self.add(2)
+        self.assertEqual(self.quote_for("US", region="CA")["tax"], "1.45")
+
+    def test_local_rate_at_checkout(self):
+        self.add(2)
+        response = checkout(self.client, region="ny", postal_code="10001", city="New York")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        order = Order.objects.get()
+        self.assertEqual((order.region, order.tax_rate), ("NY", Decimal("8.875")))
+        self.assertEqual(order.tax_amount, Decimal("2.22"))  # 8.875% of $24.99
+
+    def test_us_address_needs_a_state(self):
+        self.add(1)
+        for region in ("", "ZZ"):
+            response = checkout(self.client, region=region)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn("region", response.data)
+
+    def test_quote_accepts_a_missing_state_but_not_a_wrong_one(self):
+        self.add(1)
+        self.assertEqual(self.quote_for("US")["tax"], "0.00")
+        response = self.client.post(
+            reverse("api_quote"), {"country": "US", "region": "ZZ"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_other_countries_take_any_region(self):
+        self.add(1)
+        response = checkout(self.client, country="DE", region="Bayern", city="Munich")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(Order.objects.get().region, "Bayern")
+
+    def test_checkout_info_lists_us_states(self):
+        regions = self.client.get(reverse("api_checkout_info")).data["regions"]
+        self.assertEqual(len(regions["US"]), 51)
+        self.assertIn({"code": "NY", "name": "New York"}, regions["US"])
+
+    def quote_for(self, country, **extra):
+        payload = {"country": country, **extra}
+        response = self.client.post(reverse("api_quote"), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return response.data
+
+
+class WeightShippingTest(CheckoutTestCase):
+    def test_price_grows_with_each_started_kilogram(self):
+        self.add(5)  # 1250 g, $50 so the free threshold is off below
+        ShippingMethod.objects.update(free_from=None)
+        data = self.quote("US").data
+        self.assertEqual(data["weight"], 1250)
+        # First kilogram in the base price, one more started kilogram.
+        self.assertEqual(data["shipping"], "6.49")
+        prices = {m["code"]: m["price"] for m in data["methods"]}
+        self.assertEqual(prices, {"standard": "6.49", "express": "18.99"})
+
+    def test_heavy_order(self):
+        self.book.weight = 3000
+        self.book.save()
+        self.add(3)  # 9 kg, $30
+        prices = {m["code"]: m["price"] for m in self.quote("US").data["methods"]}
+        self.assertEqual(prices, {"standard": "16.99", "express": "46.99"})
+
+    def test_methods_over_their_weight_limit_are_hidden(self):
+        self.book.weight = 3000
+        self.book.save()
+        self.add(4)  # 12 kg, express takes up to 10 kg
+        data = self.quote("US").data
+        self.assertEqual([m["code"] for m in data["methods"]], ["standard"])
+        self.assertEqual(data["shipping"], "0.00")  # $40 ships free
+        response = self.quote("US", "express")
+        self.assertIn("shipping_method", response.data)
+
+    def test_too_heavy_for_every_method(self):
+        self.book.weight = 25000
+        self.book.save()
+        self.add(1)
+        response = self.quote("US")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("split", str(response.data["weight"]))
+
+    def test_order_keeps_the_weight(self):
+        self.add(3)
+        response = checkout(self.client)
+        self.assertEqual(response.data["shipping_weight"], 750)
+
+    def test_price_for_without_weight_pricing(self):
+        method = ShippingMethod(price=Decimal("5"), per_kg=Decimal("0"))
+        self.assertEqual(method.price_for(5000), Decimal("5"))
+        self.assertTrue(method.fits(10**6))

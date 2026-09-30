@@ -24,6 +24,7 @@ from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from main import checkout
 from main.management.commands._translations import TRANSLATIONS
 from main.models import (
     Book,
@@ -44,6 +45,7 @@ BOOKS = [
         "isbn": "9780141182636",
         "price": "12.99",
         "stock": 8,
+        "weight": 250,
         "description": (
             "Set in the summer of 1922, Fitzgerald's masterpiece follows the "
             "mysterious millionaire Jay Gatsby and his obsession with Daisy "
@@ -56,6 +58,7 @@ BOOKS = [
         "isbn": "9780061120084",
         "price": "14.99",
         "stock": 5,
+        "weight": 380,
         "description": (
             "A Pulitzer Prize-winning story of racial injustice in the Deep "
             "South, seen through the eyes of young Scout Finch as her father "
@@ -68,6 +71,7 @@ BOOKS = [
         "isbn": "9780451524935",
         "price": "11.49",
         "stock": 12,
+        "weight": 350,
         "description": (
             "A chilling dystopia where surveillance, propaganda and "
             "totalitarian control define every waking moment. Big Brother is "
@@ -80,6 +84,7 @@ BOOKS = [
         "isbn": "9780060850524",
         "price": "13.99",
         "stock": 0,
+        "weight": 310,
         "description": (
             "A future engineered for happiness, stability and pleasure, but "
             "at the cost of freedom, art and truth. Huxley's prophetic vision "
@@ -92,6 +97,7 @@ BOOKS = [
         "isbn": "9780316769488",
         "price": "10.99",
         "stock": 3,
+        "weight": 260,
         "description": (
             "Holden Caulfield's restless, funny and heartbreaking journey "
             "through New York City after being expelled from prep school, the "
@@ -104,6 +110,7 @@ BOOKS = [
         "isbn": "9780141439518",
         "price": "9.49",
         "stock": 7,
+        "weight": 420,
         "description": (
             "Elizabeth Bennet navigates love, class and the sting of first "
             "impressions in Regency England. Austen's sparkling wit at its "
@@ -116,6 +123,7 @@ BOOKS = [
         "isbn": "9780140449136",
         "price": "15.99",
         "stock": 0,
+        "weight": 650,
         "description": (
             "A destitute student murders a pawnbroker and is consumed by guilt "
             "and paranoia. A towering psychological drama of conscience, "
@@ -128,6 +136,7 @@ BOOKS = [
         "isbn": "9780261103344",
         "price": "16.99",
         "stock": 10,
+        "weight": 450,
         "description": (
             "Bilbo Baggins is swept from his comfortable hobbit-hole into an "
             "epic quest to reclaim a treasure guarded by the dragon Smaug. The "
@@ -140,6 +149,7 @@ BOOKS = [
         "isbn": "9781451673319",
         "price": "12.49",
         "stock": 6,
+        "weight": 230,
         "description": (
             "In a world where books are outlawed and 'firemen' burn any that "
             "are found, one fireman begins to question everything. Bradbury's "
@@ -152,6 +162,7 @@ BOOKS = [
         "isbn": "9780451526342",
         "price": "8.99",
         "stock": 15,
+        "weight": 150,
         "description": (
             "The farm animals revolt against their human master, only to find "
             "that power corrupts absolutely. A razor-sharp fable of revolution "
@@ -164,6 +175,7 @@ BOOKS = [
         "isbn": "9780141441146",
         "price": "10.49",
         "stock": 4,
+        "weight": 560,
         "description": (
             "An orphaned governess falls for her brooding employer, Mr "
             "Rochester, but Thornfield Hall hides a terrible secret. A fierce, "
@@ -176,6 +188,7 @@ BOOKS = [
         "isbn": "9780141439471",
         "price": "11.99",
         "stock": 9,
+        "weight": 300,
         "description": (
             "Victor Frankenstein creates life, and unleashes a tragedy of "
             "ambition, abandonment and revenge. The novel that gave birth to "
@@ -188,6 +201,7 @@ BOOKS = [
         "isbn": "9780142437247",
         "price": "13.49",
         "stock": 6,
+        "weight": 720,
         "description": (
             "Captain Ahab's obsessive hunt for the white whale that took his "
             "leg drives the Pequod and its crew toward catastrophe. A vast, "
@@ -200,6 +214,7 @@ BOOKS = [
         "isbn": "9780141439556",
         "price": "9.99",
         "stock": 5,
+        "weight": 420,
         "description": (
             "On the wild Yorkshire moors, the doomed passion between Heathcliff "
             "and Catherine Earnshaw echoes down two generations. Dark, "
@@ -212,6 +227,7 @@ BOOKS = [
         "isbn": "9780141439846",
         "price": "10.99",
         "stock": 7,
+        "weight": 520,
         "description": (
             "Told through letters and diaries, the story of Jonathan Harker's "
             "journey to Transylvania and the ancient count who follows him "
@@ -224,6 +240,7 @@ BOOKS = [
         "isbn": "9780399501487",
         "price": "11.29",
         "stock": 2,
+        "weight": 280,
         "description": (
             "Stranded on a desert island, a group of schoolboys try to govern "
             "themselves, and descend into savagery. A gripping parable about "
@@ -236,6 +253,7 @@ BOOKS = [
         "isbn": "9780141439570",
         "price": "8.49",
         "stock": 11,
+        "weight": 300,
         "description": (
             "A beautiful young man stays forever youthful while his portrait "
             "records every sin. Wilde's witty, decadent and chilling tale of "
@@ -248,6 +266,7 @@ BOOKS = [
         "isbn": "9780684801223",
         "price": "9.29",
         "stock": 0,
+        "weight": 160,
         "description": (
             "An aging Cuban fisherman battles a giant marlin far out in the Gulf "
             "Stream. A spare, luminous story of endurance and dignity in defeat."
@@ -269,6 +288,7 @@ DEMO_ADDRESS = {
     "full_name": "Demo Reader",
     "address_line1": "742 Evergreen Terrace",
     "city": "Springfield",
+    "region": "OR",
     "postal_code": "97403",
     "country": "US",
     "shipping_method": "Standard",
@@ -331,6 +351,7 @@ class Command(BaseCommand):
                     "description": data["description"],
                     "price": Decimal(data["price"]),
                     "stock": data["stock"],
+                    "weight": data["weight"],
                 },
             )
             if not was_created:
@@ -338,6 +359,7 @@ class Command(BaseCommand):
                 book.description = data["description"]
                 book.price = Decimal(data["price"])
                 book.stock = data["stock"]
+                book.weight = data["weight"]
                 book.save()
                 updated += 1
             else:
@@ -431,12 +453,20 @@ class Command(BaseCommand):
                     unit_price=book.price,
                     quantity=quantity,
                 )
-            order.recalculate_total()
-            # US standard shipping, free from $35. No sales tax is collected.
-            if order.subtotal < Decimal("35"):
-                order.shipping_cost = Decimal("4.99")
-                order.recalculate_total(save=False)
-                order.save()
+            # Price the delivery the way checkout does. Oregon has no sales tax.
+            priced = checkout.quote(
+                [(item.book, item.quantity) for item in order.items.select_related("book")],
+                DEMO_ADDRESS["country"],
+                "standard",
+                region=DEMO_ADDRESS["region"],
+                postal_code=DEMO_ADDRESS["postal_code"],
+            )
+            order.shipping_cost = priced.shipping
+            order.tax_rate = priced.tax_rate
+            order.tax_amount = priced.tax
+            order.shipping_weight = priced.weight
+            order.recalculate_total(save=False)
+            order.save()
             order_count += 1
 
         cart = Cart.objects.create(buyer=user)
