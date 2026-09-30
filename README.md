@@ -11,10 +11,12 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Verso is an online bookstore built with Django REST Framework and Vue 3. You
-can browse and search the catalog, add books to a cart, place an order and
-cancel it while it is still pending. Staff manage books and orders in the
-Django admin. The interface is in English by default. Russian, French and
-German can be picked in the header, and the book catalog is translated too.
+can search the catalog, add books to a cart, place an order and pay for it
+with a card, or cancel it while it is still pending. Prices can be shown in US
+dollars, euros or rubles. Staff manage books, orders, payments and exchange
+rates in the Django admin. The interface is in English by default. Russian,
+French and German can be picked in the header, and the book catalog is
+translated too.
 
 ![Catalog](docs/screenshots/en/catalog.png)
 
@@ -27,15 +29,16 @@ docker compose up --build
 Open <http://localhost:8080> and press **Use demo account** on the sign in
 page, or sign in as **demo / demopass123**. The demo user has three orders and
 a few books in the cart. On the first start the database gets 18 classic
-novels with covers.
+novels with covers and fresh exchange rates.
+
+To try a payment, check out the cart and pay with the test card
+**4242 4242 4242 4242** (any future date, any code). The card
+**4000 0000 0000 0002** is declined. No money is charged in the demo mode. To
+use real Stripe Checkout instead, see [Payments](#payments).
 
 The API reference (Swagger UI) is at <http://localhost:8080/api/docs/> and the
 admin is at <http://localhost:8080/admin/>. To get an admin account on start,
 set `DJANGO_SUPERUSER_USERNAME` and `DJANGO_SUPERUSER_PASSWORD` in `.env`.
-
-To see the stock check, put the last copies of a book into the cart in two
-browsers and place both orders. The second order is rejected, and the message
-says how many copies are left.
 
 ## Case study
 
@@ -43,8 +46,9 @@ says how many copies are left.
 
 A small bookshop wants to sell online. The shop must not sell more copies than
 it has, even when two people order at the same time. Old orders have to keep
-their prices after the catalog changes. The site has to work on a phone and in
-several languages.
+their prices after the catalog or the exchange rates change. Customers come
+from several countries, so the site needs their language and their currency,
+and it has to work on a phone.
 
 ### Solution
 
@@ -54,7 +58,8 @@ order goes through these statuses.
 | Status | Who sets it | Stock |
 |---|---|---|
 | **Pending** | Checkout | Copies are taken from stock |
-| **Paid, Shipped, Delivered** | Staff in the admin | No change |
+| **Paid** | A successful payment (demo card or Stripe webhook) | No change |
+| **Shipped, Delivered** | Staff in the admin | No change |
 | **Cancelled** | The customer, only while the order is pending | Copies go back to stock |
 
 Checkout runs in one transaction and locks the book rows before it checks the
@@ -67,8 +72,8 @@ with transaction.atomic():
               if i.quantity > books[i.book_id].stock]
     if errors:
         raise ValidationError({"detail": _("Not enough stock."), "items": errors})
-    order = Order.objects.create(buyer=user)
-    ...  # save title and price, take copies from stock, empty the cart
+    order = Order.objects.create(buyer=user, currency=order_currency)
+    ...  # save titles and prices in that currency, take stock, empty the cart
 ```
 
 ### Engineering highlights
@@ -76,35 +81,53 @@ with transaction.atomic():
 - Checkout and cancellation lock book rows with `SELECT … FOR UPDATE`. The
   stock check, the stock change and the new order are saved in one
   transaction, so a failed check leaves no half-made order.
-- An order line keeps the title and the price from the moment of purchase. The
-  link to the book is `SET_NULL`, so editing or deleting a book does not change
-  old orders.
-- The cart is loaded with a fixed number of SQL queries, one `JOIN` for items
-  and books and one query for translations. A test counts the queries, so an
-  N+1 problem fails CI.
+- An order line keeps the title and the price from the moment of purchase, in
+  the currency the customer chose. Editing a book or changing a rate does not
+  change old orders.
+- Payments go through a small provider interface. The demo provider checks the
+  card number with the Luhn algorithm and has test cards for success, decline
+  and missing funds. The Stripe provider creates a Checkout Session, and only
+  the signed Stripe webhook marks an order as paid. Webhook deliveries are
+  idempotent, and money that arrives for an order cancelled in the meantime is
+  flagged for a refund.
+- Prices are stored in US dollars. `ExchangeRate` rows hold the rates, a
+  command updates them from a public feed, and a middleware converts prices
+  for the currency the SPA asks for in `X-Currency`. Price filters work in the
+  chosen currency too.
+- On PostgreSQL the catalog uses full-text search. Each book has a `tsvector`
+  built from the English text and all translations, each stemmed with its own
+  language, with a GIN index. Results are ranked, `websearch` syntax works
+  ("quotes", -minus), and a trigram index catches typos like "Tolkein". SQLite
+  in development falls back to a simple substring match.
+- The cart is loaded with a fixed number of SQL queries. A test counts them, so
+  an N+1 problem fails CI.
 - Search, sorting, the in stock filter and the page number are kept in the URL.
   A catalog page can be shared, reloaded or opened again with the back button.
-- When the access token expires, parallel requests wait for one shared refresh
-  instead of each sending its own.
 - Covers of the demo books come from Open Library and are stored in the
-  repository. A book without a picture gets a generated cover with its title
-  and author. Swagger UI files are served locally, so the app needs no CDN.
-- The OpenAPI 3 schema is generated from the code. CI validates it and fails on
-  warnings.
+  repository. A book without a picture gets a generated cover. Swagger UI files
+  are served locally, so the app needs no CDN.
 
 ### Security
 
-- The JWT access token lives 30 minutes. The refresh token is replaced on every
-  use. If the session cannot be refreshed, the site signs the user out.
+- JWT tokens never reach JavaScript. The backend puts them into httpOnly
+  cookies with `SameSite=Lax` (and `Secure` over HTTPS). The refresh cookie is
+  only sent to `/api/auth/`.
+- Because the browser sends cookies by itself, every unsafe request has to pass
+  Django's CSRF check. The SPA reads the `csrftoken` cookie and sends it in
+  `X-CSRFToken`, sign in and registration included.
+- The access token lives 30 minutes. The refresh token is replaced on every use
+  and the old one goes to a blacklist, so a stolen refresh token stops working
+  after the next refresh. Signing out revokes it as well.
 - Sign in, registration and token refresh are limited to 20 requests per minute
   by default. Anonymous and signed in users have separate limits.
-- Registration checks passwords with the Django validators.
+- The Stripe webhook is accepted only with a valid Stripe signature.
 - After sign in the site redirects only to relative paths of the same site, so
   `?next=` cannot send a user to another domain.
-- A user sees only their own cart and orders. Any other order returns 404.
-- Secrets and hosts come from environment variables. `HTTPS=True` turns on
-  secure cookies, HSTS and the redirect to HTTPS. `X-Frame-Options` is always
-  set to `DENY`.
+- A user sees only their own cart, orders and payments. Anything else returns
+  404.
+- Secrets come from environment variables. `HTTPS=True` turns on secure
+  cookies, HSTS and the redirect to HTTPS. `X-Frame-Options` is always set to
+  `DENY`.
 
 ### Localization
 
@@ -116,60 +139,72 @@ with transaction.atomic():
   3 books", "1 книга, 3 книги, 5 книг", "0 livre, 2 livres"). A test checks
   that all languages have the same keys.
 - Book titles, authors and descriptions are stored in `BookTranslation`, one
-  row per language. If a translation is missing, the English text is shown.
-  Search looks through every language, and sorting by title or author uses the
-  translated text.
-- API error messages are translated with Django gettext. The frontend sends the
-  chosen language in `Accept-Language`, so a message like "Only 2 copies left"
-  arrives in the user's language with the right plural form. CI checks that the
-  compiled `.mo` files match the `.po` files.
-- Prices and dates are formatted with `Intl` for the chosen language.
+  row per language, with a fallback to English. With `DEEPL_API_KEY` set, a
+  new book is translated automatically when staff add it. The admin shows which
+  books miss a language and can translate selected books. Staff can edit every
+  translation.
+- API error messages, including card errors, are translated with Django
+  gettext. The frontend sends the chosen language in `Accept-Language`. CI
+  checks that the compiled `.mo` files match the `.po` files.
+- The currency follows the language (USD for English, RUB for Russian, EUR for
+  French and German) until the visitor picks another one. Prices and dates are
+  formatted with `Intl`.
 
 ### Architecture
 
 ```mermaid
 flowchart LR
-    U[Browser<br/>Vue 3 SPA] -->|HTTP| N[nginx<br/>static SPA and reverse proxy]
+    U[Browser<br/>Vue 3 SPA] -->|HTTP, cookies| N[nginx<br/>static SPA and reverse proxy]
     N -->|/api, /admin, /static| G[gunicorn<br/>Django and DRF]
     N -->|/media| M[(Media volume<br/>book covers)]
-    G --> P[(PostgreSQL)]
-    G --> M
+    G --> P[(PostgreSQL<br/>full-text search)]
+    G -->|Checkout Session| S[Stripe]
+    S -->|signed webhook| G
+    G -->|new books| D[DeepL]
+    G -->|daily rates| R[Exchange rate feed]
 ```
 
 The SPA and the API share one origin, so there is no CORS in production and
-the frontend uses relative URLs. In development the Vite server forwards the
-same paths to `runserver`.
+the cookies are first party. In development the Vite server forwards the same
+paths to `runserver`.
 
 | Module | Responsibility |
 |---|---|
-| `backend/main/views.py` | Catalog, auth, cart, checkout, orders, cancellation |
-| `backend/main/serializers.py` | API format, picks the book translation for the request language |
-| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `CartItem`, `Order`, `OrderItem` |
-| `backend/main/management/commands/seed.py` | Demo catalog, translations, covers, demo user |
-| `frontend/src/services/api.ts` | Typed API client, JWT storage, shared token refresh |
-| `frontend/src/router.ts` | Lazy routes, auth guards, page titles |
-| `frontend/src/i18n/` | vue-i18n setup, plural rules, EN, RU, FR and DE texts |
+| `backend/main/views.py` | Catalog, cart, checkout, orders, cancellation |
+| `backend/main/authentication.py`, `auth_views.py` | JWT in httpOnly cookies, CSRF, sign in, refresh, sign out |
+| `backend/main/payments/`, `payment_views.py` | Demo and Stripe providers, payment state, webhook |
+| `backend/main/currency.py` | Active currency, conversion, rate cache |
+| `backend/main/search.py` | Search document, full-text query, trigram fallback |
+| `backend/main/machine_translation.py` | DeepL translation of new books |
+| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
+| `frontend/src/services/api.ts` | Typed API client, CSRF, shared session refresh |
+| `frontend/src/currency.ts`, `i18n/` | Currency and language choice, texts in four languages |
+| `frontend/src/pages/Payment.vue` | Card form for the demo mode, redirect for Stripe |
 
 ### What the overhaul changed
 
 The project began as a Django shop with server-rendered pages, where an order
-could hold only one book. Later it was split into a REST API and a Vue
-frontend. The overhaul included these changes.
+could hold only one book and could not be paid. Later it was split into a REST
+API and a Vue frontend. The overhaul included these changes.
 
 - Removed leftovers of a generated template, such as unused Tailwind and
   PostCSS, React types, analytics and placeholder images.
-- Added order cancellation that returns stock under row locks, catalog filters
-  and a cart with a fixed number of queries.
-- Documented the API with OpenAPI and Swagger UI, added rate limits, a health
-  check used by docker-compose and HTTPS settings.
-- Rebuilt the storefront. The catalog state is in the URL, sign in returns you
-  to the page you came from, quantity is limited by stock, and there are
-  loading skeletons, empty states, a 404 page, dark mode and a mobile layout.
+- Added order cancellation, catalog filters and a cart with a fixed number of
+  queries.
+- Added card payments with a demo provider and Stripe Checkout.
+- Added prices in euros and rubles with stored exchange rates.
+- Moved JWT tokens from `localStorage` to httpOnly cookies with CSRF
+  protection and token revocation.
+- Replaced substring search with PostgreSQL full-text search in four languages
+  with typo tolerance.
 - Translated the interface, the API messages and the catalog into Russian,
-  French and German.
-- Added real covers for the demo books.
-- Grew the test suite to 138 tests and added lint, schema, translation and
-  coverage checks to CI.
+  French and German, with DeepL for new books.
+- Rebuilt the storefront with state in the URL, dark mode and a mobile layout,
+  and added real covers for the demo books.
+- Documented the API with OpenAPI and Swagger UI, added rate limits, a health
+  check and HTTPS settings.
+- Grew the test suite to 207 tests, added a browser smoke test and ran the
+  backend tests on both SQLite and PostgreSQL in CI.
 
 ## Screenshots
 
@@ -177,18 +212,35 @@ frontend. The overhaul included these changes.
 |---|---|
 | ![Book page](docs/screenshots/en/book-detail.png) | ![Cart](docs/screenshots/en/cart.png) |
 
+| Payment | Order history |
+|---|---|
+| ![Payment](docs/screenshots/en/payment.png) | ![Orders](docs/screenshots/en/orders.png) |
+
 | Dark mode | Mobile |
 |---|---|
 | ![Dark mode](docs/screenshots/en/catalog-dark.png) | ![Mobile](docs/screenshots/en/mobile-cart.png) |
 
-| Order history | API reference |
-|---|---|
-| ![Orders](docs/screenshots/en/orders.png) | ![Swagger UI](docs/screenshots/api-docs.png) |
+## Payments
+
+The demo mode needs no setup. To take real payments with Stripe, set these
+variables and point a Stripe webhook at `/api/payments/stripe/webhook/` for the
+`checkout.session.completed` and `checkout.session.expired` events.
+
+```bash
+PAYMENT_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SITE_URL=https://your-shop.example
+```
+
+For local testing, `stripe listen --forward-to localhost:8080/api/payments/stripe/webhook/`
+prints the webhook secret.
 
 ## Running without Docker
 
 You need Python 3.12 or newer, Node.js 20 or newer and pnpm. Without Postgres
-settings the backend uses SQLite.
+settings the backend uses SQLite, where search falls back to substring
+matching.
 
 ```bash
 ./scripts/build-dev.sh          # Linux and macOS, sets up and starts both apps
@@ -202,18 +254,19 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py seed           # demo catalog, translations, covers, demo user
-python manage.py runserver      # http://127.0.0.1:8000
+python manage.py seed                   # demo catalog, translations, covers, demo user
+python manage.py update_exchange_rates  # optional, the seed has default rates
+python manage.py runserver              # http://127.0.0.1:8000
 
 cd ../frontend
 pnpm install
-pnpm run dev                    # http://127.0.0.1:5173
+pnpm run dev                            # http://127.0.0.1:5173
 ```
 
 Covers of the demo books are stored in `backend/main/fixtures/covers/`, so
-`seed` works offline. For a book without a stored cover, `seed` downloads one
-from Open Library. `--save-covers` keeps the downloads in that folder,
-`--no-covers` skips downloading and `--flush` starts from an empty catalog.
+`seed` works offline. `--flush` starts from an empty catalog.
+`python manage.py translate_books` fills in missing translations with DeepL.
+Run `update_exchange_rates` once a day from cron or any scheduler.
 
 ## Configuration
 
@@ -227,6 +280,13 @@ Settings are read from environment variables. docker-compose takes them from
 | `ALLOWED_HOSTS` | Allowed hosts, comma separated | local hosts in debug |
 | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | Frontend origins | Vite dev server |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | PostgreSQL is used when `POSTGRES_DB` is set | SQLite |
+| `SITE_URL` | Public address, used in links back from Stripe | `http://localhost:8080` |
+| `PAYMENT_PROVIDER` | `demo` or `stripe` | `demo` |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe keys | none |
+| `DEEPL_API_KEY` | Machine translation of new books | none |
+| `AUTO_TRANSLATE_BOOKS` | Translate a book when it is created | `True` |
+| `EXCHANGE_RATES_URL` | Rate feed with USD as the base | open.er-api.com |
+| `UPDATE_RATES_ON_START` | Fetch rates when the container starts | `1` |
 | `SEED_ON_START` | Load demo data when the container starts | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Admin account created on start | none |
 | `HTTPS` | Secure cookies, HSTS, redirect to HTTPS | `False` |
@@ -243,14 +303,17 @@ coverage run manage.py test && coverage report
 cd ../frontend
 pnpm run type-check
 pnpm run coverage
+BASE_URL=http://localhost:8080 pnpm run smoke   # browser test against a running app
 ```
 
-The backend has 60 tests with 94% coverage. They cover the API, models,
-checkout, cancellation, filters, translations, the number of SQL queries, rate
-limits and the seed command. The frontend has 78 tests with 92% coverage for
-pages, router guards, the API client, components and translations. CI also
-looks for missing migrations, validates the OpenAPI schema, checks compiled
-translations and builds the Docker images.
+The backend has 113 tests with 96% coverage. They cover the API, cookie
+authentication and CSRF, checkout, cancellation, both payment providers
+including webhook signatures, currency conversion, full-text search, machine
+translation, the number of SQL queries and rate limits. CI runs them on SQLite
+and on PostgreSQL. The frontend has 94 tests with 94% coverage for pages, the
+payment form, router guards, the API client, currencies and translations. The
+smoke test signs in, buys a book, pays with a declined and a working test card
+and checks that no token is readable from JavaScript.
 
 Screenshots for all languages are taken from a running app with
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -259,15 +322,13 @@ Screenshots for all languages are taken from a running app with
 
 Known limits of the current version.
 
-- There is no payment provider. Checkout creates a pending order, and staff
-  move it forward in the admin.
-- Only the demo books have translations. A new book is shown in English until
-  someone adds a translation in the admin.
-- All prices are in US dollars.
-- JWT tokens are kept in `localStorage`. An httpOnly cookie would protect
-  better against XSS but needs CSRF protection.
-- Search uses `icontains`. A large catalog would need PostgreSQL full text
-  search.
+- Refunds are not sent automatically. A payment for an order that was
+  cancelled during checkout is flagged in the admin, and staff refund it in
+  Stripe.
+- The stack has no scheduler. Exchange rates are updated on container start or
+  by running `update_exchange_rates` from cron.
+- DeepL translations are machine quality. Staff may want to check them in the
+  admin.
 
 ## Project structure
 
@@ -277,17 +338,22 @@ Known limits of the current version.
 │   ├── locale/              # API messages in Russian, French and German (gettext)
 │   └── main/
 │       ├── fixtures/covers/ # covers of the demo books
-│       ├── management/      # seed command and catalog translations
-│       ├── filters.py, pagination.py, serializers.py, views.py, admin.py
-│       └── tests.py
+│       ├── management/      # seed, update_exchange_rates, translate_books
+│       ├── payments/        # demo and Stripe providers
+│       ├── migrations/
+│       ├── tests/           # auth, core, currency, payments, search, translation
+│       ├── authentication.py, auth_views.py, payment_views.py
+│       ├── currency.py, search.py, machine_translation.py
+│       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/
 │   │   ├── i18n/            # vue-i18n setup and texts in four languages
-│   │   ├── pages/           # catalog, book, cart, orders, sign in, registration, 404
+│   │   ├── pages/           # catalog, book, cart, payment, orders, sign in, 404
 │   │   ├── components/      # BookCover, StockBadge
 │   │   ├── services/api.ts  # typed API client
+│   │   ├── currency.ts
 │   │   └── router.ts
-│   ├── scripts/screenshots.mjs
+│   ├── scripts/             # screenshots.mjs, smoke.mjs
 │   └── nginx.conf
 ├── docs/screenshots/        # en, ru, fr, de
 ├── docker-compose.yml
