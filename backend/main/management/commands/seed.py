@@ -39,7 +39,7 @@ BOOKS = [
         "description": (
             "Set in the summer of 1922, Fitzgerald's masterpiece follows the "
             "mysterious millionaire Jay Gatsby and his obsession with Daisy "
-            "Buchanan — a shimmering, tragic portrait of the American Dream."
+            "Buchanan, a shimmering, tragic portrait of the American Dream."
         ),
     },
     {
@@ -63,7 +63,7 @@ BOOKS = [
         "description": (
             "A chilling dystopia where surveillance, propaganda and "
             "totalitarian control define every waking moment. Big Brother is "
-            "watching — and freedom is the most dangerous idea of all."
+            "watching, and freedom is the most dangerous idea of all."
         ),
     },
     {
@@ -73,7 +73,7 @@ BOOKS = [
         "price": "13.99",
         "stock": 0,
         "description": (
-            "A future engineered for happiness, stability and pleasure — but "
+            "A future engineered for happiness, stability and pleasure, but "
             "at the cost of freedom, art and truth. Huxley's prophetic vision "
             "of a society that trades soul for comfort."
         ),
@@ -86,7 +86,7 @@ BOOKS = [
         "stock": 3,
         "description": (
             "Holden Caulfield's restless, funny and heartbreaking journey "
-            "through New York City after being expelled from prep school — the "
+            "through New York City after being expelled from prep school, the "
             "definitive novel of teenage alienation."
         ),
     },
@@ -158,7 +158,7 @@ BOOKS = [
         "stock": 4,
         "description": (
             "An orphaned governess falls for her brooding employer, Mr "
-            "Rochester — but Thornfield Hall hides a terrible secret. A fierce, "
+            "Rochester, but Thornfield Hall hides a terrible secret. A fierce, "
             "romantic and unforgettable heroine."
         ),
     },
@@ -169,7 +169,7 @@ BOOKS = [
         "price": "11.99",
         "stock": 9,
         "description": (
-            "Victor Frankenstein creates life — and unleashes a tragedy of "
+            "Victor Frankenstein creates life, and unleashes a tragedy of "
             "ambition, abandonment and revenge. The novel that gave birth to "
             "science fiction."
         ),
@@ -218,7 +218,7 @@ BOOKS = [
         "stock": 2,
         "description": (
             "Stranded on a desert island, a group of schoolboys try to govern "
-            "themselves — and descend into savagery. A gripping parable about "
+            "themselves, and descend into savagery. A gripping parable about "
             "the darkness within."
         ),
     },

@@ -64,7 +64,7 @@ class BookModelTest(TestCase):
         self.book = make_book()
 
     def test_str(self):
-        self.assertEqual(str(self.book), "Test Book — Test Author")
+        self.assertEqual(str(self.book), "Test Book by Test Author")
 
     def test_in_stock_true(self):
         self.assertTrue(self.book.in_stock)
@@ -120,7 +120,7 @@ class OrderModelTest(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — books
+# API tests (books)
 # ---------------------------------------------------------------------------
 
 
@@ -165,7 +165,7 @@ class BookApiTest(APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — auth (JWT)
+# API tests (auth (JWT))
 # ---------------------------------------------------------------------------
 
 
@@ -225,7 +225,7 @@ class AuthApiTest(APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — cart
+# API tests (cart)
 # ---------------------------------------------------------------------------
 
 
@@ -283,7 +283,7 @@ class CartApiTest(AuthedAPITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — checkout & orders
+# API tests (checkout & orders)
 # ---------------------------------------------------------------------------
 
 
@@ -357,7 +357,7 @@ class CheckoutApiTest(AuthedAPITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — catalog filters & ordering
+# API tests (catalog filters & ordering)
 # ---------------------------------------------------------------------------
 
 
@@ -385,7 +385,7 @@ class BookFilterApiTest(APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — order cancellation
+# API tests (order cancellation)
 # ---------------------------------------------------------------------------
 
 
@@ -431,7 +431,7 @@ class OrderCancelApiTest(AuthedAPITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — performance, docs, health, throttling
+# API tests (performance, docs, health, throttling)
 # ---------------------------------------------------------------------------
 
 
@@ -440,7 +440,7 @@ class CartQueryCountTest(AuthedAPITestCase):
         cart = Cart.objects.create(buyer=self.user)
         for i in range(5):
             CartItem.objects.create(cart=cart, book=make_book(title=f"B{i}"), quantity=1)
-        # user, cart, items+books in one JOIN, book translations — independent
+        # user, cart, items+books in one JOIN, book translations. Independent
         # of the item count.
         with self.assertNumQueries(4):
             response = self.client.get(reverse("api_cart"))
@@ -486,7 +486,7 @@ class ThrottleTest(APITestCase):
 
 
 # ---------------------------------------------------------------------------
-# API tests — localization
+# API tests (localization)
 # ---------------------------------------------------------------------------
 
 

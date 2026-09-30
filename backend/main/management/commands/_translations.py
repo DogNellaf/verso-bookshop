@@ -10,19 +10,20 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
             "Великий Гэтсби",
             "Ф. Скотт Фицджеральд",
             "Лето 1922 года. Таинственный миллионер Джей Гэтсби одержим Дэйзи "
-            "Бьюкенен — сверкающий и трагический портрет американской мечты.",
+            "Бьюкенен, сверкающий и трагический портрет американской мечты.",
         ),
         "fr": (
             "Gatsby le Magnifique",
             "F. Scott Fitzgerald",
-            "Été 1922 : le mystérieux millionnaire Jay Gatsby et son obsession pour "
-            "Daisy Buchanan — un portrait éblouissant et tragique du rêve américain.",
+            "À l'été 1922, le mystérieux millionnaire Jay Gatsby vit dans son obsession pour "
+            "Daisy Buchanan, un portrait éblouissant et tragique du rêve américain.",
         ),
         "de": (
             "Der große Gatsby",
             "F. Scott Fitzgerald",
-            "Sommer 1922: Der geheimnisvolle Millionär Jay Gatsby und seine Besessenheit "
-            "von Daisy Buchanan — ein schillerndes, tragisches Porträt des amerikanischen Traums.",
+            "Im Sommer 1922 verliert sich der geheimnisvolle Millionär Jay Gatsby in "
+            "seiner Besessenheit von Daisy Buchanan. Ein schillerndes, tragisches "
+            "Porträt des amerikanischen Traums.",
         ),
     },
     "To Kill a Mockingbird": {
@@ -42,7 +43,7 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
             "Wer die Nachtigall stört",
             "Harper Lee",
             "Der mit dem Pulitzerpreis ausgezeichnete Roman über Rassenungerechtigkeit im "
-            "Süden der USA — erzählt von der jungen Scout, deren Vater einen zu Unrecht "
+            "Süden der USA, erzählt von der jungen Scout, deren Vater einen zu Unrecht "
             "Angeklagten verteidigt.",
         ),
     },
@@ -51,21 +52,21 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
             "1984",
             "Джордж Оруэлл",
             "Леденящая антиутопия, где слежка, пропаганда и тотальный контроль "
-            "пронизывают каждый миг. Большой Брат следит за тобой — и свобода "
+            "пронизывают каждый миг. Большой Брат следит за тобой, и свобода "
             "становится самой опасной мыслью.",
         ),
         "fr": (
             "1984",
             "George Orwell",
             "Une dystopie glaçante où surveillance, propagande et contrôle total "
-            "régissent chaque instant. Big Brother vous regarde — et la liberté est "
+            "régissent chaque instant. Big Brother vous regarde, et la liberté est "
             "l'idée la plus dangereuse de toutes.",
         ),
         "de": (
             "1984",
             "George Orwell",
             "Eine beklemmende Dystopie, in der Überwachung, Propaganda und totale "
-            "Kontrolle jeden Moment bestimmen. Der Große Bruder sieht dich — und "
+            "Kontrolle jeden Moment bestimmen. Der Große Bruder sieht dich, und "
             "Freiheit ist der gefährlichste Gedanke von allen.",
         ),
     },
@@ -73,21 +74,21 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "ru": (
             "О дивный новый мир",
             "Олдос Хаксли",
-            "Будущее, созданное ради счастья, стабильности и удовольствия, — ценой "
+            "Будущее, созданное ради счастья, стабильности и удовольствия, ценой "
             "свободы, искусства и правды. Пророческое видение общества, променявшего "
             "душу на комфорт.",
         ),
         "fr": (
             "Le Meilleur des mondes",
             "Aldous Huxley",
-            "Un futur conçu pour le bonheur, la stabilité et le plaisir — au prix de la "
+            "Un futur conçu pour le bonheur, la stabilité et le plaisir, au prix de la "
             "liberté, de l'art et de la vérité. La vision prophétique d'une société qui "
             "troque son âme contre le confort.",
         ),
         "de": (
             "Schöne neue Welt",
             "Aldous Huxley",
-            "Eine Zukunft, geschaffen für Glück, Stabilität und Vergnügen — um den Preis "
+            "Eine Zukunft, geschaffen für Glück, Stabilität und Vergnügen, um den Preis "
             "von Freiheit, Kunst und Wahrheit. Huxleys prophetische Vision einer "
             "Gesellschaft, die ihre Seele gegen Komfort eintauscht.",
         ),
@@ -97,19 +98,19 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
             "Над пропастью во ржи",
             "Дж. Д. Сэлинджер",
             "Беспокойные, смешные и щемящие скитания Холдена Колфилда по Нью-Йорку "
-            "после исключения из школы — голос целого поколения.",
+            "после исключения из школы, голос целого поколения.",
         ),
         "fr": (
             "L'Attrape-cœurs",
             "J. D. Salinger",
             "L'errance agitée, drôle et bouleversante de Holden Caulfield dans New York "
-            "après son renvoi du lycée — la voix de toute une génération.",
+            "après son renvoi du lycée, la voix de toute une génération.",
         ),
         "de": (
             "Der Fänger im Roggen",
             "J. D. Salinger",
             "Holden Caulfields rastlose, komische und herzzerreißende Streifzüge durch "
-            "New York nach dem Rauswurf aus dem Internat — die Stimme einer Generation.",
+            "New York nach dem Rauswurf aus dem Internat, die Stimme einer Generation.",
         ),
     },
     "Pride and Prejudice": {
@@ -167,15 +168,15 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "fr": (
             "Le Hobbit",
             "J. R. R. Tolkien",
-            "Bilbo Sacquet quitte son confortable trou de hobbit pour une quête épique : "
-            "reprendre un trésor gardé par le dragon Smaug. Le prélude adoré du "
+            "Bilbo Sacquet quitte son confortable trou de hobbit pour reprendre un "
+            "trésor gardé par le dragon Smaug. Le prélude adoré du "
             "Seigneur des Anneaux.",
         ),
         "de": (
             "Der Hobbit",
             "J. R. R. Tolkien",
-            "Bilbo Beutlin wird aus seiner gemütlichen Hobbithöhle in ein Abenteuer "
-            "gerissen: einen Schatz zurückzuerobern, den der Drache Smaug bewacht. Das "
+            "Bilbo Beutlin verlässt seine gemütliche Hobbithöhle, um einen Schatz "
+            "zurückzuerobern, den der Drache Smaug bewacht. Das "
             "geliebte Vorspiel zum Herrn der Ringe.",
         ),
     },
@@ -218,7 +219,7 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "de": (
             "Farm der Tiere",
             "George Orwell",
-            "Die Tiere erheben sich gegen ihren menschlichen Herrn — und erfahren, dass "
+            "Die Tiere erheben sich gegen ihren menschlichen Herrn, und erfahren, dass "
             "Macht absolut korrumpiert. Eine messerscharfe Fabel über die verratene "
             "Revolution.",
         ),
@@ -233,7 +234,7 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "fr": (
             "Jane Eyre",
             "Charlotte Brontë",
-            "Une gouvernante orpheline s'éprend de son sombre employeur, Mr Rochester — "
+            "Une gouvernante orpheline s'éprend de son sombre employeur, Mr Rochester, "
             "mais Thornfield Hall cache un terrible secret. Une héroïne farouche, "
             "romantique et inoubliable.",
         ),
@@ -241,7 +242,7 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
             "Jane Eyre",
             "Charlotte Brontë",
             "Eine verwaiste Gouvernante verliebt sich in ihren grüblerischen Dienstherrn "
-            "Mr Rochester — doch Thornfield Hall birgt ein schreckliches Geheimnis. Eine "
+            "Mr Rochester, doch Thornfield Hall birgt ein schreckliches Geheimnis. Eine "
             "leidenschaftliche, unvergessliche Heldin.",
         ),
     },
@@ -249,20 +250,20 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "ru": (
             "Франкенштейн",
             "Мэри Шелли",
-            "Виктор Франкенштейн создаёт жизнь — и развязывает трагедию честолюбия, "
+            "Виктор Франкенштейн создаёт жизнь, и развязывает трагедию честолюбия, "
             "одиночества и мести. Роман, с которого началась научная фантастика.",
         ),
         "fr": (
             "Frankenstein",
             "Mary Shelley",
-            "Victor Frankenstein crée la vie — et déclenche une tragédie d'ambition, "
+            "Victor Frankenstein crée la vie, et déclenche une tragédie d'ambition, "
             "d'abandon et de vengeance. Le roman qui a donné naissance à la "
             "science-fiction.",
         ),
         "de": (
             "Frankenstein",
             "Mary Shelley",
-            "Victor Frankenstein erschafft Leben — und entfesselt eine Tragödie aus "
+            "Victor Frankenstein erschafft Leben, und entfesselt eine Tragödie aus "
             "Ehrgeiz, Verlassenheit und Rache. Der Roman, mit dem die Science-Fiction "
             "begann.",
         ),
@@ -331,8 +332,8 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "de": (
             "Dracula",
             "Bram Stoker",
-            "In Briefen und Tagebüchern erzählt: Jonathan Harkers Reise nach "
-            "Transsilvanien und der uralte Graf, der ihm nach England folgt. Der "
+            "Briefe und Tagebücher erzählen von Jonathan Harkers Reise nach "
+            "Transsilvanien und dem uralten Grafen, der ihm nach England folgt. Der "
             "Vampirroman schlechthin.",
         ),
     },
@@ -340,13 +341,13 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
         "ru": (
             "Повелитель мух",
             "Уильям Голдинг",
-            "Оказавшись на необитаемом острове, школьники пытаются управлять собой — "
+            "Оказавшись на необитаемом острове, школьники пытаются управлять собой, "
             "и скатываются к дикости. Захватывающая притча о тьме внутри человека.",
         ),
         "fr": (
             "Sa Majesté des mouches",
             "William Golding",
-            "Échoués sur une île déserte, des écoliers tentent de se gouverner — et "
+            "Échoués sur une île déserte, des écoliers tentent de se gouverner, et "
             "sombrent dans la sauvagerie. Une parabole saisissante sur les ténèbres "
             "intérieures.",
         ),
@@ -354,7 +355,7 @@ TRANSLATIONS: dict[str, dict[str, tuple[str, str, str]]] = {
             "Herr der Fliegen",
             "William Golding",
             "Auf einer einsamen Insel gestrandet, versuchen Schuljungen, sich selbst zu "
-            "regieren — und verfallen der Barbarei. Eine packende Parabel über die "
+            "regieren, und verfallen der Barbarei. Eine packende Parabel über die "
             "Dunkelheit im Menschen.",
         ),
     },

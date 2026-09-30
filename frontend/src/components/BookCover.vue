@@ -25,8 +25,8 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-// Renders the book's cover image, or — when there is none or it fails to
-// load — a generated typographic cover with a colour derived from the title.
+// Renders the book's cover image, or, when there is none or it fails to
+// load, a generated typographic cover with a colour derived from the title.
 // Keeps the UI looking finished offline and without third-party placeholders.
 const props = withDefaults(
   defineProps<{

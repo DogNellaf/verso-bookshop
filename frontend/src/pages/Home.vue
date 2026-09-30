@@ -171,7 +171,7 @@ const fetchBooks = async () => {
     totalPages.value = data.total_pages
   } catch (err) {
     if ((err as any)?.response?.status === 404 && page > 1) {
-      // Page out of range (e.g. a stale link) — fall back to the first page.
+      // Page out of range (e.g. a stale link), fall back to the first page.
       updateQuery({ page: 1 })
       return
     }
@@ -182,7 +182,7 @@ const fetchBooks = async () => {
   }
 }
 
-// Refetch whenever the catalog query changes — but not while navigating away
+// Refetch whenever the catalog query changes, but not while navigating away
 // from the page (the route changes before this component unmounts).
 const catalogPath = route.path
 watch(

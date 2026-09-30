@@ -1,4 +1,4 @@
-# Verso — frontend
+# Verso frontend
 
 Vue 3 + TypeScript single-page storefront for the Verso bookstore.
 See the [root README](../README.md) for the full project overview.
@@ -22,4 +22,4 @@ pnpm run screenshots  # README screenshots from a running instance (BASE_URL=…
 | `src/components/` | `BookCover` (image or generated cover), `StockBadge` |
 | `src/composables/useTheme.ts` | Light / dark theme |
 | `src/i18n/` | vue-i18n setup, plural rules, EN/RU/FR/DE messages |
-| `src/style.css` | Design tokens and component styles — no CSS framework |
+| `src/style.css` | Design tokens and component styles, no CSS framework |

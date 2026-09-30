@@ -66,6 +66,6 @@ export function setLocale(locale: Locale) {
   try {
     localStorage.setItem(STORAGE_KEY, locale)
   } catch {
-    /* storage unavailable — keep the in-memory choice */
+    /* storage unavailable, keep the in-memory choice */
   }
 }

@@ -30,7 +30,7 @@ export function useTheme() {
     try {
       localStorage.setItem(STORAGE_KEY, theme.value)
     } catch {
-      /* storage unavailable (private mode) — keep the in-memory choice */
+      /* storage unavailable (private mode), keep the in-memory choice */
     }
   }
   return { theme, toggle }

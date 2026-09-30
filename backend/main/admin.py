@@ -43,7 +43,7 @@ class BookAdmin(admin.ModelAdmin):
     @admin.display(description="Cover")
     def cover_thumb(self, obj):
         if not obj.cover:
-            return "—"
+            return "-"
         return format_html('<img src="{}" style="height:48px;border-radius:3px">', obj.cover.url)
 
     @admin.display(description="Preview")

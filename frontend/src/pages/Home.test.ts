@@ -105,7 +105,7 @@ describe('Home.vue', () => {
     mockGetBooks.mockResolvedValue(page({ count: 3 }))
     const { wrapper } = await mountAt()
 
-    expect(wrapper.text()).toContain('Найдите свою следующую любимую книгу')
+    expect(wrapper.text()).toContain('Выберите следующую книгу')
     expect(wrapper.text()).toContain('3 книги')
     expect(wrapper.text()).toContain('В наличии')
   })

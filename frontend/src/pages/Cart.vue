@@ -175,7 +175,7 @@ const checkoutHandler = async () => {
     router.push({ path: '/orders', query: { placed: String(order.id) } })
   } catch (err) {
     error.value = extractApiError(err, t('cart.checkoutError'))
-    // Stock may have changed under us — show the up-to-date cart.
+    // Stock may have changed under us, show the up-to-date cart.
     getCart().then(({ data }) => applyCart(data)).catch(() => {})
   } finally {
     busy.value = false

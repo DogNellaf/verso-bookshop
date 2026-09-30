@@ -10,12 +10,12 @@
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Une librairie en ligne : une API Django REST Framework avec une interface
-d'administration et une vitrine en Vue 3 + TypeScript. Les visiteurs
-parcourent et recherchent le catalogue, gardent un panier persistant, passent
-commande, puis suivent ou annulent leurs commandes. L'interface est en anglais
-par défaut et disponible en russe, en français et en allemand via le sélecteur
-de langue de l'en-tête — catalogue de livres compris.
+Verso est une librairie en ligne écrite avec Django REST Framework et Vue 3.
+On peut chercher des livres dans le catalogue, remplir un panier, passer
+commande et annuler la commande tant qu'elle est en attente. L'équipe gère les
+livres et les commandes dans l'administration Django. L'interface est en
+anglais par défaut. Le russe, le français et l'allemand se choisissent dans
+l'en-tête, et le catalogue est traduit lui aussi.
 
 ![Catalogue](docs/screenshots/fr/catalog.png)
 
@@ -25,44 +25,43 @@ de langue de l'en-tête — catalogue de livres compris.
 docker compose up --build
 ```
 
-Ouvrez <http://localhost:8080> et cliquez sur **Compte de démo** sur la page de
-connexion (**demo / demopass123**). L'utilisateur de démo a déjà trois
-commandes dans différents états et un panier rempli. Au premier démarrage, 18
-romans classiques sont chargés dans le catalogue.
+Ouvrez <http://localhost:8080> et cliquez sur **Compte de démo** sur la page
+de connexion, ou connectez-vous avec **demo / demopass123**. L'utilisateur de
+démo a déjà trois commandes et quelques livres dans son panier. Au premier
+démarrage, la base reçoit 18 romans classiques avec leurs couvertures.
 
-- Référence interactive de l'API (Swagger UI) : <http://localhost:8080/api/docs/>
-- Administration : <http://localhost:8080/admin/> — définissez
-  `DJANGO_SUPERUSER_USERNAME` et `DJANGO_SUPERUSER_PASSWORD` dans `.env` pour
-  qu'un compte soit créé au démarrage.
+La documentation de l'API (Swagger UI) se trouve sur
+<http://localhost:8080/api/docs/> et l'administration sur
+<http://localhost:8080/admin/>. Pour créer un compte administrateur au
+démarrage, définissez `DJANGO_SUPERUSER_USERNAME` et
+`DJANGO_SUPERUSER_PASSWORD` dans `.env`.
 
-Pour voir la protection du stock en action, mettez les derniers exemplaires
-d'un livre dans le panier depuis deux navigateurs et commandez dans les deux :
-la seconde commande est refusée avec un message indiquant combien d'exemplaires
-il reste.
+Pour voir le contrôle du stock, mettez les derniers exemplaires d'un livre
+dans le panier depuis deux navigateurs et passez les deux commandes. La
+seconde est refusée, et le message indique combien d'exemplaires il reste.
 
 ## Étude de cas
 
 ### Problème
 
-Une petite librairie veut vendre en ligne. La boutique doit se comporter comme
-une vraie, pas comme une démo CRUD : ne jamais vendre un exemplaire qu'elle
-n'a pas, même quand deux personnes commandent au même moment ; l'historique
-des commandes ne doit pas changer quand les prix ou le catalogue sont
-modifiés ; et la vitrine doit être agréable sur mobile, en plusieurs langues.
+Une petite librairie veut vendre en ligne. Elle ne doit pas vendre plus
+d'exemplaires qu'elle n'en a, même si deux personnes commandent au même
+moment. Les anciennes commandes doivent garder leurs prix quand le catalogue
+change. Le site doit fonctionner sur téléphone et en plusieurs langues.
 
 ### Solution
 
-L'API REST porte toutes les règles métier ; la SPA est un client typé et léger.
-Une commande passe par ces états :
+Toutes les règles métier sont dans l'API REST, l'application Vue ne fait que
+l'appeler. Une commande passe par ces statuts.
 
-| Statut | Défini par | Effet sur le stock |
+| Statut | Qui le définit | Stock |
 |---|---|---|
-| **En attente** | La validation du panier | Les exemplaires sont retirés du stock, de façon atomique |
-| **Payée / Expédiée / Livrée** | L'équipe, dans l'administration | — |
-| **Annulée** | Le client (seulement tant qu'elle est en attente) | Les exemplaires reviennent en stock |
+| **En attente** | La validation du panier | Les exemplaires sont retirés du stock |
+| **Payée, Expédiée, Livrée** | L'équipe, dans l'administration | Pas de changement |
+| **Annulée** | Le client, seulement si la commande est en attente | Les exemplaires reviennent en stock |
 
-La validation du panier est une seule transaction qui verrouille d'abord les
-lignes des livres concernés :
+La commande se fait dans une seule transaction. Les lignes des livres sont
+d'abord verrouillées, puis le stock est vérifié.
 
 ```python
 with transaction.atomic():
@@ -72,113 +71,118 @@ with transaction.atomic():
     if errors:
         raise ValidationError({"detail": _("Not enough stock."), "items": errors})
     order = Order.objects.create(buyer=user)
-    ...  # instantané du titre et du prix, décrément du stock, vidage du panier
+    ...  # garder titre et prix, retirer du stock, vider le panier
 ```
 
 ### Points techniques
 
-- **Pas de survente.** La commande et l'annulation verrouillent les lignes des
-  livres avec `SELECT … FOR UPDATE` ; vérification, mouvements de stock et
-  commande forment une seule transaction, donc un échec ne laisse aucune trace.
-- **L'historique est un instantané.** Chaque ligne de commande conserve le
-  titre et le prix unitaire au moment de l'achat, et la clé étrangère vers le
-  livre est `SET_NULL` : modifier ou supprimer un livre ne réécrit jamais les
-  commandes passées.
-- **Nombre de requêtes constant.** Le panier charge articles et livres en un
-  seul `JOIN` plus une requête pour les traductions ; un test fige le nombre de
-  requêtes SQL, si bien qu'une régression N+1 fait échouer la CI.
-- **L'URL est l'état.** Recherche, tri, filtre « en stock » et numéro de page
-  sont dans la query string : toute vue du catalogue peut être partagée,
-  rechargée ou retrouvée avec le bouton « précédent ».
-- **Un seul rafraîchissement de jeton.** Quand le jeton d'accès expire, toutes
-  les réponses 401 simultanées attendent un unique rafraîchissement au lieu de
-  se concurrencer avec le même jeton de rafraîchissement tournant.
-- **Un rendu soigné, même hors ligne.** Les livres sans image reçoivent une
-  couverture typographique générée (couleur dérivée du titre), et les fichiers
-  de Swagger UI sont servis localement — aucun CDN tiers n'est nécessaire.
-- **Une API documentée et validée.** Le schéma OpenAPI 3 est généré depuis le
-  code et validé en CI, avertissements traités comme des erreurs.
+- La commande et l'annulation verrouillent les lignes des livres avec
+  `SELECT … FOR UPDATE`. La vérification, la mise à jour du stock et la
+  nouvelle commande sont enregistrées dans une seule transaction, donc un
+  échec ne laisse pas de commande à moitié créée.
+- Une ligne de commande garde le titre et le prix du moment de l'achat. Le
+  lien vers le livre est en `SET_NULL`, donc modifier ou supprimer un livre ne
+  change pas les anciennes commandes.
+- Le panier se charge avec un nombre fixe de requêtes SQL, un `JOIN` pour les
+  articles et les livres et une requête pour les traductions. Un test compte
+  les requêtes, et un problème N+1 fait échouer la CI.
+- La recherche, le tri, le filtre « en stock » et le numéro de page sont dans
+  l'URL. Une page du catalogue peut être partagée, rechargée ou retrouvée avec
+  le bouton retour.
+- Quand le jeton d'accès expire, les requêtes en parallèle attendent un seul
+  rafraîchissement commun au lieu d'en envoyer chacune un.
+- Les couvertures des livres de démo viennent d'Open Library et sont stockées
+  dans le dépôt. Un livre sans image reçoit une couverture générée avec son
+  titre et son auteur. Les fichiers de Swagger UI sont servis localement,
+  l'application n'a besoin d'aucun CDN.
+- Le schéma OpenAPI 3 est généré à partir du code. La CI le valide et échoue
+  en cas d'avertissement.
 
 ### Sécurité
 
-- Les jetons d'accès JWT durent 30 minutes ; les jetons de rafraîchissement
-  tournent à chaque utilisation. Si la session ne peut pas être rafraîchie,
-  l'interface déconnecte l'utilisateur au lieu d'afficher un état périmé.
-- Connexion, inscription et rafraîchissement du jeton sont limités en débit
-  (`20/min` par défaut) ; le trafic anonyme et authentifié a ses propres limites.
-- L'inscription applique les validateurs de mot de passe de Django.
-- La redirection `?next=` après connexion n'accepte que des chemins relatifs du
-  même site : impossible de l'utiliser comme redirection ouverte.
-- Chaque utilisateur ne voit que son panier et ses commandes ; le reste renvoie
-  une 404.
-- Secrets et hôtes viennent de l'environnement. `HTTPS=True` active les cookies
-  sécurisés, HSTS et la redirection HTTPS ; `X-Frame-Options: DENY` et
-  `nosniff` sont toujours actifs.
+- Le jeton d'accès JWT dure 30 minutes. Le jeton de rafraîchissement change à
+  chaque utilisation. Si la session ne peut pas être rafraîchie, le site
+  déconnecte l'utilisateur.
+- La connexion, l'inscription et le rafraîchissement du jeton sont limités à
+  20 requêtes par minute par défaut. Les visiteurs anonymes et les
+  utilisateurs connectés ont des limites séparées.
+- L'inscription vérifie le mot de passe avec les validateurs de Django.
+- Après la connexion, le site ne redirige que vers des chemins relatifs du
+  même site, donc `?next=` ne peut pas envoyer l'utilisateur vers un autre
+  domaine.
+- Chaque utilisateur ne voit que son panier et ses commandes. Une commande
+  d'un autre utilisateur renvoie 404.
+- Les secrets et les hôtes viennent des variables d'environnement.
+  `HTTPS=True` active les cookies sécurisés, HSTS et la redirection vers
+  HTTPS. L'en-tête `X-Frame-Options` vaut toujours `DENY`.
 
 ### Localisation
 
-- **Anglais, russe, français et allemand.** L'anglais est la langue par défaut
-  pour tous ; la langue du navigateur est volontairement ignorée, et le
-  sélecteur EN / RU / FR / DE mémorise le choix dans le navigateur et met à
-  jour `<html lang>`.
-- **L'interface** est traduite avec vue-i18n, avec de vraies règles de pluriel
-  (« 0 livre / 2 livres », « 1 книга / 3 книги / 5 книг »). Un test vérifie que
-  chaque langue possède exactement les mêmes clés.
-- **Le catalogue** est traduisible lui aussi : `BookTranslation` stocke titre,
-  auteur et description par langue, avec repli sur l'original anglais. La
-  recherche trouve un livre dans toutes les langues, et le tri par titre ou
-  auteur utilise les valeurs traduites.
-- **Les messages de l'API** sont traduits avec le gettext de Django. La SPA
-  envoie la langue choisie dans `Accept-Language`, donc des erreurs comme « Il
-  ne reste que 2 exemplaires » arrivent dans la langue de l'utilisateur, au bon
-  pluriel. La CI vérifie que les catalogues `.mo` compilés correspondent aux
-  sources `.po`.
-- Prix et dates sont formatés avec `Intl` selon la langue active.
+- Il y a quatre langues, l'anglais, le russe, le français et l'allemand.
+  L'anglais est la langue par défaut, la langue du navigateur est ignorée
+  exprès. Le sélecteur EN / RU / FR / DE garde le choix dans le navigateur et
+  met à jour `<html lang>`.
+- L'interface utilise vue-i18n avec les règles de pluriel de chaque langue
+  (« 0 livre, 2 livres », « 1 книга, 3 книги, 5 книг »). Un test vérifie que
+  toutes les langues ont les mêmes clés.
+- Les titres, auteurs et descriptions des livres sont stockés dans
+  `BookTranslation`, une ligne par langue. S'il manque une traduction, le
+  texte anglais s'affiche. La recherche porte sur toutes les langues, et le tri
+  par titre ou auteur utilise le texte traduit.
+- Les messages d'erreur de l'API sont traduits avec gettext de Django. Le
+  frontend envoie la langue choisie dans `Accept-Language`, donc un message
+  comme « Il ne reste que 2 exemplaires » arrive dans la langue de
+  l'utilisateur, au bon pluriel. La CI vérifie que les fichiers `.mo` compilés
+  correspondent aux fichiers `.po`.
+- Les prix et les dates sont formatés avec `Intl` selon la langue choisie.
 
 ### Architecture
 
 ```mermaid
 flowchart LR
-    U[Navigateur<br/>SPA Vue 3] -->|HTTP| N[nginx<br/>SPA statique + reverse proxy]
-    N -->|/api, /admin, /static| G[gunicorn<br/>Django + DRF]
+    U[Navigateur<br/>SPA Vue 3] -->|HTTP| N[nginx<br/>SPA statique et reverse proxy]
+    N -->|/api, /admin, /static| G[gunicorn<br/>Django et DRF]
     N -->|/media| M[(Volume média<br/>couvertures)]
     G --> P[(PostgreSQL)]
     G --> M
 ```
 
-La SPA et l'API sont servies depuis la même origine : pas de CORS en
-production, et le frontend utilise des URL relatives. En développement, le
-serveur Vite relaie les mêmes chemins vers `runserver`.
+La SPA et l'API partagent la même origine, il n'y a donc pas de CORS en
+production et le frontend utilise des URL relatives. En développement, le
+serveur Vite transmet les mêmes chemins à `runserver`.
 
 | Module | Rôle |
 |---|---|
 | `backend/main/views.py` | Catalogue, authentification, panier, commande, historique, annulation |
-| `backend/main/serializers.py` | Formats de l'API ; choisit la traduction du livre selon la langue |
+| `backend/main/serializers.py` | Format de l'API, choix de la traduction selon la langue de la requête |
 | `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `CartItem`, `Order`, `OrderItem` |
 | `backend/main/management/commands/seed.py` | Catalogue de démo, traductions, couvertures, utilisateur de démo |
-| `frontend/src/services/api.ts` | Client API typé, stockage JWT, rafraîchissement partagé |
-| `frontend/src/router.ts` | Routes chargées à la demande, gardes d'authentification, titres |
-| `frontend/src/i18n/` | Configuration vue-i18n, règles de pluriel, textes EN/RU/FR/DE |
+| `frontend/src/services/api.ts` | Client API typé, stockage des JWT, rafraîchissement partagé |
+| `frontend/src/router.ts` | Routes chargées à la demande, contrôles d'accès, titres des pages |
+| `frontend/src/i18n/` | Configuration de vue-i18n, règles de pluriel, textes en quatre langues |
 
 ### Ce que la refonte a changé
 
-Le projet était au départ une boutique Django rendue côté serveur, où une
-commande ne contenait qu'un livre, puis il a été séparé en une API REST et un
-frontend Vue. Pour le rendre présentable dans un portfolio, il a fallu :
+Au départ, le projet était une boutique Django avec des pages rendues côté
+serveur, et une commande ne pouvait contenir qu'un livre. Il a ensuite été
+séparé en une API REST et un frontend Vue. La refonte a apporté ces
+changements.
 
-- retirer les restes d'un squelette généré : chaîne Tailwind/PostCSS inutilisée,
-  typages React, analytics et images de remplacement ;
-- ajouter l'annulation de commande avec remise en stock sous verrou, des
-  filtres de catalogue et un panier à nombre de requêtes constant ;
-- documenter l'API avec OpenAPI + Swagger UI, ajouter la limitation de débit,
-  un health check branché dans docker-compose et le durcissement HTTPS ;
-- reconstruire la vitrine : état dans l'URL, gardes avec retour après
-  connexion, sélecteurs de quantité selon le stock, squelettes, états vides,
-  page 404, mode sombre et affichage mobile ;
-- traduire l'interface, les messages de l'API et le catalogue en russe,
-  français et allemand ;
-- porter la suite de tests à 138 tests et ajouter à la CI le lint, la
-  validation du schéma, la vérification des traductions et la couverture.
+- Suppression des restes d'un modèle généré, comme Tailwind et PostCSS
+  inutilisés, les types React, l'analytics et les images de remplacement.
+- Annulation des commandes avec remise en stock sous verrou, filtres du
+  catalogue et panier avec un nombre fixe de requêtes.
+- Documentation de l'API avec OpenAPI et Swagger UI, limites de débit, health
+  check utilisé par docker-compose et réglages HTTPS.
+- Nouvelle vitrine. L'état du catalogue est dans l'URL, la connexion ramène
+  sur la page d'origine, la quantité est limitée par le stock, et il y a des
+  squelettes de chargement, des états vides, une page 404, un mode sombre et
+  une version mobile.
+- Traduction de l'interface, des messages de l'API et du catalogue en russe,
+  en français et en allemand.
+- Vraies couvertures pour les livres de démo.
+- 138 tests, et la CI vérifie le lint, le schéma, les traductions et la
+  couverture.
 
 ## Captures d'écran
 
@@ -190,21 +194,21 @@ frontend Vue. Pour le rendre présentable dans un portfolio, il a fallu :
 |---|---|
 | ![Mode sombre](docs/screenshots/fr/catalog-dark.png) | ![Mobile](docs/screenshots/fr/mobile-cart.png) |
 
-| Historique des commandes | Référence de l'API |
+| Historique des commandes | Documentation de l'API |
 |---|---|
 | ![Commandes](docs/screenshots/fr/orders.png) | ![Swagger UI](docs/screenshots/api-docs.png) |
 
 ## Lancer sans Docker
 
-Il faut Python 3.12+, Node.js 20+ et pnpm. SQLite est utilisé si aucun
-paramètre Postgres n'est fourni.
+Il faut Python 3.12 ou plus récent, Node.js 20 ou plus récent et pnpm. Sans
+réglages Postgres, le backend utilise SQLite.
 
 ```bash
-./scripts/build-dev.sh          # Linux / macOS : installe et lance les deux applications
+./scripts/build-dev.sh          # Linux et macOS, installe et lance les deux applications
 .\scripts\build-dev.ps1         # Windows (PowerShell)
 ```
 
-Ou à la main :
+Ou étape par étape.
 
 ```bash
 cd backend
@@ -219,29 +223,29 @@ pnpm install
 pnpm run dev                    # http://127.0.0.1:5173
 ```
 
-Les couvertures des livres de démo (issues d'Open Library) sont fournies dans
-`backend/main/fixtures/covers/`, donc `seed` fonctionne hors ligne. Pour un
-livre sans couverture fournie, `seed` la télécharge depuis Open Library ;
-`--save-covers` y enregistre les téléchargements, `--no-covers` les désactive,
-`--flush` repart de zéro.
+Les couvertures des livres de démo sont dans `backend/main/fixtures/covers/`,
+donc `seed` fonctionne sans Internet. Pour un livre sans couverture
+enregistrée, `seed` la télécharge depuis Open Library. `--save-covers` garde
+les téléchargements dans ce dossier, `--no-covers` désactive le
+téléchargement et `--flush` repart d'un catalogue vide.
 
 ## Configuration
 
-Les paramètres viennent des variables d'environnement ; docker-compose les lit
-dans `.env`. Voir [`.env.example`](.env.example).
+Les réglages viennent des variables d'environnement. docker-compose les lit
+dans `.env`, voir [`.env.example`](.env.example).
 
 | Variable | Rôle | Par défaut |
 |---|---|---|
-| `SECRET_KEY` | Clé secrète Django | clé de dev non sûre |
+| `SECRET_KEY` | Clé secrète Django | clé de développement non sûre |
 | `DEBUG` | Mode debug | `True` (`False` dans Docker) |
-| `ALLOWED_HOSTS` | Hôtes autorisés, séparés par des virgules | hôtes locaux en debug |
-| `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | Origines du frontend | serveur Vite |
-| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | PostgreSQL si `POSTGRES_DB` est défini | SQLite |
+| `ALLOWED_HOSTS` | Hôtes autorisés, séparés par des virgules | hôtes locaux en mode debug |
+| `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS` | Adresses du frontend | serveur Vite |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST`, `POSTGRES_PORT` | PostgreSQL est utilisé si `POSTGRES_DB` est défini | SQLite |
 | `SEED_ON_START` | Charger les données de démo au démarrage du conteneur | `1` |
-| `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Compte administrateur créé au démarrage | — |
-| `HTTPS` | Cookies sécurisés, HSTS, redirection HTTPS | `False` |
+| `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Compte administrateur créé au démarrage | aucun |
+| `HTTPS` | Cookies sécurisés, HSTS, redirection vers HTTPS | `False` |
 | `THROTTLE_ANON`, `THROTTLE_USER`, `THROTTLE_AUTH` | Limites de débit | `120/min`, `600/min`, `20/min` |
-| `LOG_LEVEL` | Niveau de journalisation | `INFO` |
+| `LOG_LEVEL` | Niveau des journaux | `INFO` |
 
 ## Tests
 
@@ -255,51 +259,52 @@ pnpm run type-check
 pnpm run coverage
 ```
 
-Le backend compte 60 tests (94 % de couverture) : API, modèles, commande
-concurrente, annulation, filtres, traductions, nombre de requêtes SQL,
-limitation de débit et commande `seed`. Le frontend compte 78 tests (92 % de
-couverture) : pages, gardes du routeur, client API, composants et i18n. La CI
-vérifie aussi les migrations manquantes, valide le schéma OpenAPI, contrôle les
-traductions compilées et construit les images Docker.
+Le backend a 60 tests avec 94 % de couverture. Ils vérifient l'API, les
+modèles, la commande, l'annulation, les filtres, les traductions, le nombre de
+requêtes SQL, les limites de débit et la commande `seed`. Le frontend a
+78 tests avec 92 % de couverture pour les pages, les contrôles du routeur, le
+client API, les composants et les traductions. La CI cherche aussi les
+migrations manquantes, valide le schéma OpenAPI, vérifie les traductions
+compilées et construit les images Docker.
 
-Les captures dans toutes les langues sont prises depuis une instance en cours
-d'exécution : `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
+Les captures dans toutes les langues sont prises sur l'application en marche
+avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
 ## Limites
 
-Limites connues de l'implémentation actuelle :
+Ce qui manque dans la version actuelle.
 
-- Pas de prestataire de paiement : la commande est créée « en attente », puis
+- Il n'y a pas de service de paiement. La commande est créée en attente, puis
   l'équipe la fait avancer dans l'administration.
-- Seuls les livres de démo sont traduits ; un nouveau livre s'affiche en
-  anglais tant qu'aucune traduction n'est ajoutée dans l'administration.
-- Les prix sont dans une seule devise (USD) pour toutes les langues.
-- Les JWT sont gardés dans `localStorage`. Une session en cookie httpOnly
-  résisterait mieux au XSS, au prix d'une gestion du CSRF.
-- La recherche utilise `icontains` ; un gros catalogue demanderait la
+- Seuls les livres de démo sont traduits. Un nouveau livre s'affiche en
+  anglais tant que personne n'ajoute de traduction dans l'administration.
+- Tous les prix sont en dollars américains.
+- Les JWT sont gardés dans `localStorage`. Un cookie httpOnly protégerait
+  mieux contre le XSS mais demande une protection CSRF.
+- La recherche utilise `icontains`. Un gros catalogue aurait besoin de la
   recherche plein texte de PostgreSQL.
 
 ## Structure du projet
 
 ```
 ├── backend/
-│   ├── bookshop/            # Paramètres et URLconf racine
-│   ├── locale/              # Messages de l'API en russe, français et allemand (gettext)
+│   ├── bookshop/            # réglages et URLconf racine
+│   ├── locale/              # messages de l'API en russe, français et allemand (gettext)
 │   └── main/
-│       ├── fixtures/covers/ # Couvertures de démo (seed hors ligne)
-│       ├── management/      # Commande seed et traductions du catalogue
+│       ├── fixtures/covers/ # couvertures des livres de démo
+│       ├── management/      # commande seed et traductions du catalogue
 │       ├── filters.py, pagination.py, serializers.py, views.py, admin.py
 │       └── tests.py
 ├── frontend/
 │   ├── src/
-│   │   ├── i18n/            # Configuration vue-i18n et textes EN/RU/FR/DE
-│   │   ├── pages/           # Catalogue, livre, panier, commandes, connexion, inscription, 404
+│   │   ├── i18n/            # configuration de vue-i18n et textes en quatre langues
+│   │   ├── pages/           # catalogue, livre, panier, commandes, connexion, inscription, 404
 │   │   ├── components/      # BookCover, StockBadge
-│   │   ├── services/api.ts  # Client API typé
+│   │   ├── services/api.ts  # client API typé
 │   │   └── router.ts
 │   ├── scripts/screenshots.mjs
 │   └── nginx.conf
-├── docs/screenshots/        # en/, ru/, fr/, de/
+├── docs/screenshots/        # en, ru, fr, de
 ├── docker-compose.yml
 └── .github/workflows/ci.yml
 ```

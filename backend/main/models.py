@@ -25,7 +25,7 @@ class Book(models.Model):
         ordering = ["title"]
 
     def __str__(self):
-        return f"{self.title} — {self.author}"
+        return f"{self.title} by {self.author}"
 
     @property
     def in_stock(self):
@@ -160,7 +160,7 @@ class Order(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Order #{self.pk} — {self.buyer.username}"
+        return f"Order #{self.pk} ({self.buyer.username})"
 
     def recalculate_total(self, save=True):
         self.total = sum((item.subtotal for item in self.items.all()), decimal.Decimal("0.00"))

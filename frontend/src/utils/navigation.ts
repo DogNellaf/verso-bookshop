@@ -5,7 +5,7 @@ export const APP_NAME = 'Verso'
 export const setPageTitle = (title?: string) => {
   document.title = title
     ? `${title} · ${APP_NAME}`
-    : `${APP_NAME} — ${i18n.global.t('app.title')}`
+    : `${APP_NAME} · ${i18n.global.t('app.title')}`
 }
 
 /** Only allow same-site relative redirects (no //evil.com, no absolute URLs). */

@@ -1,6 +1,6 @@
 /* =========================================================
    Verso design system
-   Plain, self-contained CSS — no framework utilities.
+   Plain, self-contained CSS, no framework utilities.
    Theme tokens live on :root; dark mode is [data-theme="dark"].
    ========================================================= */
 
@@ -1135,9 +1135,9 @@ a.order-line__title:hover { color: var(--bs-accent); }
 /* ---- Demo account hint ---- */
 .demo-hint {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .75rem;
   padding: .875rem 1rem;
   margin-bottom: 1.5rem;
   border-radius: var(--bs-radius);
@@ -1155,9 +1155,7 @@ a.order-line__title:hover { color: var(--bs-accent); }
   color: var(--bs-fg);
 }
 
-@media (max-width: 440px) {
-  .demo-hint { flex-direction: column; align-items: stretch; }
-}
+
 
 /* ---- Language switcher ---- */
 .locale-select {
