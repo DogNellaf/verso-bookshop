@@ -14,7 +14,7 @@ from rest_framework.exceptions import ValidationError
 from main.models import Order, Payment
 from main.payments.demo import luhn_valid, validate_card
 from main.payments.stripe_provider import to_minor_units
-from main.tests.helpers import AuthedAPITestCase, make_book, make_user
+from main.tests.helpers import AuthedAPITestCase, checkout, make_book, make_user
 
 GOOD_CARD = {"card_number": "4242 4242 4242 4242", "expiry": "12/40", "cvc": "123"}
 WEBHOOK_SECRET = "whsec_test"
@@ -44,7 +44,7 @@ class PaymentTestCase(AuthedAPITestCase):
         super().setUp()
         self.book = make_book(price=Decimal("10.00"), stock=5)
         self.client.post(reverse("api_cart_items"), {"book": self.book.pk, "quantity": 2})
-        self.order_id = self.client.post(reverse("api_checkout")).data["id"]
+        self.order_id = checkout(self.client).data["id"]
 
     def start(self):
         response = self.client.post(reverse("api_order_pay", args=[self.order_id]))
@@ -64,7 +64,8 @@ class DemoPaymentTest(PaymentTestCase):
     def test_successful_payment_marks_the_order_paid(self):
         payment = self.start()
         self.assertEqual((payment["provider"], payment["status"]), ("demo", "pending"))
-        self.assertEqual((payment["amount"], payment["currency"]), ("20.00", "USD"))
+        # $20 of books plus $4.99 standard shipping to the US, no tax there.
+        self.assertEqual((payment["amount"], payment["currency"]), ("24.99", "USD"))
 
         response = self.confirm(payment["id"])
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -212,11 +213,11 @@ class StripePaymentTest(PaymentTestCase):
             self.webhook("checkout.session.completed", payment["id"])
         refund.assert_called_once()
         self.assertEqual(refund.call_args.kwargs["payment_intent"], "pi_123")
-        self.assertEqual(
-            refund.call_args.kwargs["idempotency_key"], f"verso-refund-{payment['id']}"
-        )
+        self.assertTrue(refund.call_args.kwargs["idempotency_key"].startswith("verso-refund-"))
+        self.assertEqual(refund.call_args.kwargs["amount"], 2499)
         stored = Payment.objects.get(pk=payment["id"])
-        self.assertEqual((stored.status, stored.refund_id), ("refunded", "re_1"))
+        self.assertEqual(stored.status, "refunded")
+        self.assertEqual(stored.refunds.get().provider_refund_id, "re_1")
         self.assertFalse(stored.needs_refund)
         self.assertEqual(self.order().status, Order.Status.CANCELLED)
 

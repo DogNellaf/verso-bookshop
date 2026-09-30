@@ -30,7 +30,7 @@ from main.models import (
     BookTranslation,
     Cart,
     CartItem,
-    ExchangeRate,
+    Currency,
     Order,
     OrderItem,
 )
@@ -265,6 +265,17 @@ DEMO_ORDERS = [
     ("pending", [("Fahrenheit 451", 1), ("Animal Farm", 1), ("Jane Eyre", 2)]),
 ]
 
+DEMO_ADDRESS = {
+    "full_name": "Demo Reader",
+    "address_line1": "742 Evergreen Terrace",
+    "city": "Springfield",
+    "postal_code": "97403",
+    "country": "US",
+    "shipping_method": "Standard",
+    "delivery_min_days": 3,
+    "delivery_max_days": 6,
+}
+
 # Items left in the demo user's cart (for the cart-page screenshot).
 DEMO_CART = [
     ("Frankenstein", 1),
@@ -272,7 +283,7 @@ DEMO_CART = [
 ]
 
 # Used until `update_exchange_rates` fetches real ones.
-DEFAULT_RATES = {"EUR": Decimal("0.92"), "RUB": Decimal("92.50")}
+DEFAULT_RATES = {"USD": Decimal("1"), "EUR": Decimal("0.92"), "RUB": Decimal("92.50")}
 
 COVER_URL = "https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg?default=false"
 
@@ -346,7 +357,10 @@ class Command(BaseCommand):
         )
 
         for code, rate in DEFAULT_RATES.items():
-            ExchangeRate.objects.get_or_create(currency=code, defaults={"rate": rate})
+            currency, _ = Currency.objects.get_or_create(code=code, defaults={"rate": rate})
+            if currency.rate is None:
+                currency.rate = rate
+                currency.save()
 
         self._seed_demo_user_and_orders(books_by_title)
 
@@ -405,7 +419,7 @@ class Command(BaseCommand):
 
         order_count = 0
         for status, lines in DEMO_ORDERS:
-            order = Order.objects.create(buyer=user, status=status)
+            order = Order.objects.create(buyer=user, status=status, **DEMO_ADDRESS)
             for title, quantity in lines:
                 book = books_by_title.get(title)
                 if book is None:
@@ -418,6 +432,11 @@ class Command(BaseCommand):
                     quantity=quantity,
                 )
             order.recalculate_total()
+            # US standard shipping, free from $35. No sales tax is collected.
+            if order.subtotal < Decimal("35"):
+                order.shipping_cost = Decimal("4.99")
+                order.recalculate_total(save=False)
+                order.save()
             order_count += 1
 
         cart = Cart.objects.create(buyer=user)

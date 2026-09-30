@@ -127,6 +127,9 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 # Pending payments older than this are cancelled by the scheduler.
 PAYMENT_TIMEOUT_HOURS = int(os.environ.get("PAYMENT_TIMEOUT_HOURS", "24"))
+# Pending orders without payment are cancelled after this and their books
+# go back to stock.
+UNPAID_ORDER_TIMEOUT_HOURS = int(os.environ.get("UNPAID_ORDER_TIMEOUT_HOURS", "48"))
 
 # How often the scheduler fetches exchange rates.
 EXCHANGE_RATES_INTERVAL_HOURS = int(os.environ.get("EXCHANGE_RATES_INTERVAL_HOURS", "24"))
@@ -134,8 +137,8 @@ EXCHANGE_RATES_INTERVAL_HOURS = int(os.environ.get("EXCHANGE_RATES_INTERVAL_HOUR
 # Public address of the site, used for links back from the payment page.
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080").rstrip("/")
 
-# Catalog prices are stored in USD and converted with ExchangeRate rows.
-CURRENCIES = ["USD", "EUR", "RUB"]
+# Catalog prices are stored in USD and converted with Currency rows, which
+# staff manage in the admin.
 EXCHANGE_RATES_URL = os.environ.get("EXCHANGE_RATES_URL", "https://open.er-api.com/v6/latest/USD")
 TIME_ZONE = "UTC"
 USE_I18N = True

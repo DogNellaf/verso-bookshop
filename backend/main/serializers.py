@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.utils.translation import get_language
+from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -146,6 +147,54 @@ class CartSerializer(serializers.ModelSerializer):
         return currency.effective_currency()
 
 
+class AddressSerializer(serializers.Serializer):
+    full_name = serializers.CharField(max_length=150)
+    address_line1 = serializers.CharField(max_length=200)
+    address_line2 = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    city = serializers.CharField(max_length=100)
+    postal_code = serializers.CharField(max_length=20)
+    country = serializers.CharField(max_length=2)
+    phone = serializers.CharField(max_length=30, required=False, allow_blank=True)
+
+    def validate_country(self, value):
+        from main.countries import COUNTRY_CODES
+
+        value = value.upper()
+        if value not in COUNTRY_CODES:
+            raise serializers.ValidationError(_("Choose a country from the list."))
+        return value
+
+
+class QuoteRequestSerializer(serializers.Serializer):
+    country = serializers.CharField(max_length=2)
+    shipping_method = serializers.CharField(required=False, allow_blank=True)
+
+
+class CheckoutSerializer(AddressSerializer):
+    shipping_method = serializers.CharField()
+
+
+class MethodQuoteSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    name = serializers.CharField()
+    price = serializers.DecimalField(max_digits=12, decimal_places=2)
+    free = serializers.BooleanField()
+    min_days = serializers.IntegerField()
+    max_days = serializers.IntegerField()
+
+
+class QuoteSerializer(serializers.Serializer):
+    currency = serializers.CharField()
+    subtotal = serializers.DecimalField(max_digits=12, decimal_places=2)
+    shipping = serializers.DecimalField(max_digits=12, decimal_places=2)
+    tax_rate = serializers.DecimalField(max_digits=5, decimal_places=2)
+    tax_name = serializers.CharField()
+    tax = serializers.DecimalField(max_digits=12, decimal_places=2)
+    total = serializers.DecimalField(max_digits=12, decimal_places=2)
+    method = MethodQuoteSerializer()
+    methods = MethodQuoteSerializer(many=True)
+
+
 class AddCartItemSerializer(serializers.Serializer):
     book = serializers.PrimaryKeyRelatedField(queryset=Book.objects.all())
     quantity = serializers.IntegerField(min_value=1, default=1)
@@ -167,30 +216,68 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = ["id", "book", "title", "unit_price", "quantity", "subtotal"]
 
 
+CAPTURED_OR_REFUNDED = (
+    Payment.Status.SUCCEEDED,
+    Payment.Status.PARTIALLY_REFUNDED,
+    Payment.Status.REFUNDED,
+)
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     item_count = serializers.IntegerField(read_only=True)
     refund = serializers.SerializerMethodField(
-        help_text="refunded, pending (a refund is being retried) or null"
+        help_text="refunded, partial, pending (still being sent) or null"
     )
+    refunded_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = [
             "id",
             "status",
+            "subtotal",
+            "shipping_cost",
+            "tax_rate",
+            "tax_amount",
             "total",
             "currency",
             "item_count",
             "created_at",
+            "shipping_method",
+            "delivery_min_days",
+            "delivery_max_days",
+            "full_name",
+            "address_line1",
+            "address_line2",
+            "city",
+            "postal_code",
+            "country",
+            "phone",
             "refund",
+            "refunded_amount",
             "items",
         ]
 
+    def _refunds(self, obj):
+        payments = list(obj.payments.all())
+        captured = sum(
+            (p.amount for p in payments if p.status in CAPTURED_OR_REFUNDED), Decimal("0.00")
+        )
+        refunded = sum((p.refunded_amount() for p in payments), Decimal("0.00"))
+        pending = any(p.needs_refund for p in payments)
+        return captured, refunded, pending
+
     def get_refund(self, obj) -> str | None:
-        payments = obj.payments.all()
-        if any(p.needs_refund for p in payments):
+        captured, refunded, pending = self._refunds(obj)
+        if pending:
             return "pending"
-        if any(p.status == Payment.Status.REFUNDED for p in payments):
+        if captured and refunded >= captured:
             return "refunded"
+        if refunded:
+            return "partial"
         return None
+
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
+    def get_refunded_amount(self, obj):
+        return str(self._refunds(obj)[1])

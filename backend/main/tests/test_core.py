@@ -11,6 +11,7 @@ from main.tests.helpers import (
     APITestCase,
     AuthedAPITestCase,
     authenticate,
+    checkout,
     make_book,
     make_user,
     sign_out,
@@ -198,7 +199,7 @@ class CheckoutApiTest(AuthedAPITestCase):
     def test_checkout_creates_order_and_decrements_stock(self):
         self._add(self.book_a, 2)
         self._add(self.book_b, 1)
-        response = self.client.post(reverse("api_checkout"))
+        response = checkout(self.client)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data["items"]), 2)
         self.assertEqual(Decimal(response.data["total"]), Decimal("45.00"))
@@ -210,12 +211,12 @@ class CheckoutApiTest(AuthedAPITestCase):
 
     def test_checkout_clears_cart(self):
         self._add(self.book_a, 1)
-        self.client.post(reverse("api_checkout"))
+        checkout(self.client)
         self.assertEqual(self.client.get(reverse("api_cart")).data["items"], [])
 
     def test_checkout_snapshots_price(self):
         self._add(self.book_a, 1)
-        self.client.post(reverse("api_checkout"))
+        checkout(self.client)
         item = OrderItem.objects.get(title="Book A")
         self.assertEqual(item.unit_price, Decimal("10.00"))
         # Later price changes don't affect the historical order.
@@ -225,7 +226,7 @@ class CheckoutApiTest(AuthedAPITestCase):
         self.assertEqual(item.unit_price, Decimal("10.00"))
 
     def test_checkout_empty_cart_rejected(self):
-        response = self.client.post(reverse("api_checkout"))
+        response = checkout(self.client)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Order.objects.count(), 0)
 
@@ -234,7 +235,7 @@ class CheckoutApiTest(AuthedAPITestCase):
         # Reduce stock below the cart quantity after adding.
         self.book_a.stock = 1
         self.book_a.save()
-        response = self.client.post(reverse("api_checkout"))
+        response = checkout(self.client)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Order.objects.count(), 0)
         self.book_a.refresh_from_db()
@@ -242,7 +243,7 @@ class CheckoutApiTest(AuthedAPITestCase):
 
     def test_orders_list_shows_only_own(self):
         self._add(self.book_a, 1)
-        self.client.post(reverse("api_checkout"))
+        checkout(self.client)
         other = make_user("other", "otherpass123")
         Order.objects.create(buyer=other)
         response = self.client.get(reverse("api_orders"))
@@ -293,7 +294,7 @@ class OrderCancelApiTest(AuthedAPITestCase):
         super().setUp()
         self.book = make_book(price=Decimal("10.00"), stock=5)
         self.client.post(reverse("api_cart_items"), {"book": self.book.pk, "quantity": 2})
-        self.order_id = self.client.post(reverse("api_checkout")).data["id"]
+        self.order_id = checkout(self.client).data["id"]
 
     def test_cancel_pending_order_restores_stock(self):
         self.book.refresh_from_db()
@@ -392,7 +393,7 @@ class ThrottleTest(APITestCase):
 class LocalizationApiTest(AuthedAPITestCase):
     def checkout_error(self, language=None):
         headers = {"HTTP_ACCEPT_LANGUAGE": language} if language else {}
-        return self.client.post(reverse("api_checkout"), **headers).data["detail"]
+        return checkout(self.client, headers).data["detail"]
 
     def test_english_by_default(self):
         self.assertEqual(self.checkout_error(), "Your cart is empty.")
@@ -483,7 +484,7 @@ class CatalogTranslationApiTest(AuthedAPITestCase):
         cart = self.get(reverse("api_cart"), "ru")
         self.assertEqual(cart["items"][0]["book"]["title"], "Преступление и наказание")
 
-        self.client.post(reverse("api_checkout"))
+        checkout(self.client)
         orders = self.get(reverse("api_orders"), "ru")
         self.assertEqual(orders[0]["items"][0]["book"]["title"], "Преступление и наказание")
         # The order line keeps its purchase-time snapshot.

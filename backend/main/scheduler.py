@@ -15,7 +15,7 @@ from django.core.management import call_command
 from django.db import transaction
 from django.utils import timezone
 
-from main.models import JobRun, Payment
+from main.models import JobRun, Order, Payment, Refund
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,11 @@ def update_exchange_rates():
 
 
 def retry_refunds():
-    from main.payments.services import refund_payment
+    from main.payments.services import process_refund
 
-    owed = Payment.objects.filter(needs_refund=True, status=Payment.Status.SUCCEEDED)
-    results = [refund_payment(pk).status for pk in owed.values_list("pk", flat=True)]
-    done = results.count(Payment.Status.REFUNDED)
+    pending = Refund.objects.filter(status=Refund.Status.PENDING).values_list("pk", flat=True)
+    results = [process_refund(pk).status for pk in pending]
+    done = results.count(Refund.Status.SUCCEEDED)
     return f"{done} of {len(results)} refund(s) sent"
 
 
@@ -42,6 +42,24 @@ def expire_stale_payments():
         status=Payment.Status.CANCELLED, failure_reason="Expired without payment."
     )
     return f"{count} payment(s) expired"
+
+
+def cancel_unpaid_orders():
+    """Give the books of long-unpaid orders back to the shelf."""
+    from main.orders import CannotCancel, cancel_order
+
+    cutoff = timezone.now() - timedelta(hours=settings.UNPAID_ORDER_TIMEOUT_HOURS)
+    stale = Order.objects.filter(status=Order.Status.PENDING, created_at__lt=cutoff).exclude(
+        payments__status=Payment.Status.PENDING
+    )
+    cancelled = 0
+    for order_id in stale.values_list("pk", flat=True).distinct():
+        try:
+            cancel_order(order_id, only_status=Order.Status.PENDING, reason="Not paid in time")
+            cancelled += 1
+        except CannotCancel:
+            pass  # paid in the meantime
+    return f"{cancelled} unpaid order(s) cancelled"
 
 
 @dataclass(frozen=True)
@@ -60,6 +78,7 @@ def jobs():
         ),
         Job("retry_refunds", timedelta(minutes=15), retry_refunds),
         Job("expire_stale_payments", timedelta(hours=1), expire_stale_payments),
+        Job("cancel_unpaid_orders", timedelta(hours=1), cancel_unpaid_orders),
     ]
 
 

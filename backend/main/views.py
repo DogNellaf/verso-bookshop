@@ -1,26 +1,29 @@
 from django.db import connection, transaction
 from django.db.models import OuterRef, Prefetch, Subquery, prefetch_related_objects
 from django.db.models.functions import Coalesce
-from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext as _
 from django.utils.translation import ngettext
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import filters, generics, permissions, serializers, status, viewsets
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from main import currency
+from main import checkout, currency
 from main.filters import BookFilter
 from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
-from main.payments.services import cancel_pending_payments, refund_order
+from main.orders import CannotCancel, cancel_order
 from main.search import BookSearchFilter
 from main.serializers import (
     AddCartItemSerializer,
+    AddressSerializer,
     BookSerializer,
     CartSerializer,
+    CheckoutSerializer,
     OrderSerializer,
+    QuoteRequestSerializer,
+    QuoteSerializer,
     UpdateCartItemSerializer,
     current_language,
 )
@@ -73,6 +76,29 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
                 author_i18n=Coalesce(Subquery(translated.values("author")[:1]), "author"),
             )
             .order_by("title_i18n")
+        )
+
+
+# ---- Currencies ----
+
+
+class CurrencyListView(APIView):
+    """Currencies the storefront can show prices in."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    @extend_schema(
+        responses=inline_serializer(
+            "CurrencyInfo",
+            {"code": serializers.CharField(), "decimals": serializers.IntegerField()},
+            many=True,
+        )
+    )
+    def get(self, request):
+        table = currency.currencies()
+        return Response(
+            [{"code": code, "decimals": table[code].decimals} for code in sorted(table)]
         )
 
 
@@ -173,11 +199,71 @@ class CartItemDetailView(APIView):
         return Response(cart_payload(cart))
 
 
+ADDRESS_FIELDS = (
+    "full_name",
+    "address_line1",
+    "address_line2",
+    "city",
+    "postal_code",
+    "country",
+    "phone",
+)
+
+
+class CheckoutInfoView(APIView):
+    """What the checkout form needs, the countries served and the last address."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        responses=inline_serializer(
+            "CheckoutInfo",
+            {
+                "countries": serializers.ListField(child=serializers.CharField(), allow_null=True),
+                "saved_address": AddressSerializer(allow_null=True),
+            },
+        )
+    )
+    def get(self, request):
+        last = Order.objects.filter(buyer=request.user).exclude(country="").first()
+        saved = {f: getattr(last, f) for f in ADDRESS_FIELDS} if last else None
+        return Response({"countries": checkout.shipping_countries(), "saved_address": saved})
+
+
+class QuoteView(APIView):
+    """Shipping options, tax and total of the cart for a destination."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=QuoteRequestSerializer, responses=QuoteSerializer)
+    def post(self, request):
+        data = QuoteRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        items = cart_items(request.user)
+        if not items:
+            raise ValidationError({"detail": _("Your cart is empty.")})
+        result = checkout.quote(
+            [(item.book, item.quantity) for item in items],
+            data.validated_data["country"],
+            data.validated_data.get("shipping_method") or None,
+            current_language(),
+        )
+        return Response(QuoteSerializer(result).data)
+
+
+def cart_items(user):
+    return list(CartItem.objects.filter(cart__buyer=user).select_related("book"))
+
+
 class CheckoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    @extend_schema(request=None, responses={201: OrderSerializer})
+    @extend_schema(request=CheckoutSerializer, responses={201: OrderSerializer})
     def post(self, request):
+        form = CheckoutSerializer(data=request.data)
+        form.is_valid(raise_exception=True)
+        data = form.validated_data
+
         with transaction.atomic():
             cart = get_cart(request.user)
             items = list(cart.items.select_related("book"))
@@ -198,9 +284,23 @@ class CheckoutView(APIView):
             if errors:
                 raise ValidationError({"detail": _("Not enough stock."), "items": errors})
 
-            order_currency = currency.effective_currency()
+            priced = checkout.quote(
+                [(stock[item.book_id], item.quantity) for item in items],
+                data["country"],
+                data["shipping_method"],
+                current_language(),
+            )
             order = Order.objects.create(
-                buyer=request.user, status=Order.Status.PENDING, currency=order_currency
+                buyer=request.user,
+                status=Order.Status.PENDING,
+                currency=priced.currency,
+                shipping_cost=priced.shipping,
+                tax_rate=priced.tax_rate,
+                tax_amount=priced.tax,
+                shipping_method=priced.method.name,
+                delivery_min_days=priced.method.min_days,
+                delivery_max_days=priced.method.max_days,
+                **{f: data.get(f, "") for f in ADDRESS_FIELDS},
             )
             order_items = []
             for item in items:
@@ -210,7 +310,7 @@ class CheckoutView(APIView):
                         order=order,
                         book=book,
                         title=book.title,
-                        unit_price=currency.convert(book.price, order_currency),
+                        unit_price=currency.convert(book.price, priced.currency),
                         quantity=item.quantity,
                     )
                 )
@@ -232,7 +332,7 @@ def user_orders(user):
     if not user.is_authenticated:  # schema generation calls this anonymously
         return Order.objects.none()
     return Order.objects.filter(buyer=user).prefetch_related(
-        "items__book__translations", "payments"
+        "items__book__translations", "payments__refunds"
     )
 
 
@@ -260,28 +360,10 @@ class OrderCancelView(APIView):
 
     @extend_schema(request=None, responses=OrderSerializer)
     def post(self, request, pk):
-        with transaction.atomic():
-            order = get_object_or_404(Order.objects.select_for_update(), pk=pk, buyer=request.user)
-            if order.status not in (Order.Status.PENDING, Order.Status.PAID):
-                raise ValidationError(
-                    {"detail": _("Orders that have been shipped can no longer be cancelled.")}
-                )
-
-            items = list(order.items.all())
-            book_ids = [item.book_id for item in items if item.book_id]
-            books = {
-                book.id: book for book in Book.objects.select_for_update().filter(id__in=book_ids)
-            }
-            for item in items:
-                book = books.get(item.book_id)
-                if book is not None:
-                    book.stock += item.quantity
-                    book.save(update_fields=["stock"])
-
-            order.status = Order.Status.CANCELLED
-            order.save(update_fields=["status"])
-            cancel_pending_payments(order)
-
-        # Talk to the payment provider only after the cancellation is saved.
-        refund_order(order)
-        return Response(OrderSerializer(user_orders(request.user).get(pk=order.pk)).data)
+        try:
+            cancel_order(pk, buyer=request.user)
+        except Order.DoesNotExist as exc:
+            raise NotFound() from exc
+        except CannotCancel as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        return Response(OrderSerializer(user_orders(request.user).get(pk=pk)).data)

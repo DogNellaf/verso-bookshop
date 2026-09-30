@@ -11,7 +11,12 @@ from main import scheduler
 from main.models import JobRun, Order, Payment
 from main.tests.helpers import make_user
 
-JOB_NAMES = {"update_exchange_rates", "retry_refunds", "expire_stale_payments"}
+JOB_NAMES = {
+    "update_exchange_rates",
+    "retry_refunds",
+    "expire_stale_payments",
+    "cancel_unpaid_orders",
+}
 
 
 def quiet_rates():
@@ -61,6 +66,27 @@ class SchedulerTest(TestCase):
         fresh.refresh_from_db()
         self.assertEqual((old.status, fresh.status), ("cancelled", "pending"))
 
+    def test_cancels_unpaid_orders_and_restocks(self):
+        from main.tests.helpers import make_book
+
+        user = make_user()
+        book = make_book(stock=3)
+        old = Order.objects.create(buyer=user, total=Decimal("10.00"))
+        old.items.create(book=book, title=book.title, unit_price=Decimal("10.00"), quantity=2)
+        Order.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=3))
+        paying = Order.objects.create(buyer=user, total=Decimal("10.00"))
+        Order.objects.filter(pk=paying.pk).update(created_at=timezone.now() - timedelta(days=3))
+        Payment.objects.create(order=paying, provider="stripe", amount=1, currency="USD")
+        fresh = Order.objects.create(buyer=user, total=Decimal("10.00"))
+
+        self.assertEqual(scheduler.cancel_unpaid_orders(), "1 unpaid order(s) cancelled")
+        statuses = dict(Order.objects.values_list("pk", "status"))
+        self.assertEqual(statuses[old.pk], "cancelled")
+        self.assertEqual(statuses[paying.pk], "pending")  # a payment is in progress
+        self.assertEqual(statuses[fresh.pk], "pending")
+        book.refresh_from_db()
+        self.assertEqual(book.stock, 5)
+
     def test_command_once(self):
         out = StringIO()
         with quiet_rates():
@@ -80,4 +106,4 @@ class SchedulerTest(TestCase):
             mock.patch.object(command, "report", side_effect=stop_after_first_round),
         ):
             command.handle(poll=1)
-        self.assertEqual(JobRun.objects.count(), 3)
+        self.assertEqual(JobRun.objects.count(), 4)

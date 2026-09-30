@@ -1,5 +1,8 @@
+from io import StringIO
+
 from django import forms
 from django.contrib import admin, messages
+from django.core.management import CommandError, call_command
 from django.db.models import Count
 from django.utils.html import format_html
 
@@ -9,11 +12,15 @@ from main.models import (
     BookTranslation,
     Cart,
     CartItem,
-    ExchangeRate,
+    Currency,
     JobRun,
     Order,
     OrderItem,
     Payment,
+    Refund,
+    ShippingMethod,
+    ShippingZone,
+    TaxRate,
 )
 from main.search import update_book_index
 
@@ -212,16 +219,153 @@ class PaymentInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "buyer", "status", "item_count", "total", "currency", "created_at")
+    list_display = (
+        "id",
+        "buyer",
+        "status",
+        "item_count",
+        "total",
+        "currency",
+        "country",
+        "created_at",
+    )
+    fieldsets = (
+        (None, {"fields": ("buyer", "status", "created_at")}),
+        (
+            "Amounts",
+            {
+                "fields": (
+                    "currency",
+                    "subtotal",
+                    "shipping_cost",
+                    "tax_rate",
+                    "tax_amount",
+                    "total",
+                )
+            },
+        ),
+        (
+            "Delivery",
+            {
+                "fields": (
+                    "shipping_method",
+                    ("delivery_min_days", "delivery_max_days"),
+                    "full_name",
+                    "address_line1",
+                    "address_line2",
+                    ("city", "postal_code", "country"),
+                    "phone",
+                )
+            },
+        ),
+    )
     list_filter = ("status", "created_at")
     search_fields = ("buyer__username",)
-    readonly_fields = ("total", "created_at")
+    readonly_fields = (
+        "currency",
+        "subtotal",
+        "shipping_cost",
+        "tax_rate",
+        "tax_amount",
+        "total",
+        "shipping_method",
+        "delivery_min_days",
+        "delivery_max_days",
+        "created_at",
+    )
     list_editable = ("status",)
     date_hierarchy = "created_at"
     inlines = (OrderItemInline, PaymentInline)
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("buyer").prefetch_related("items")
+
+
+class RefundInline(admin.TabularInline):
+    model = Refund
+    extra = 0
+    can_delete = False
+    fields = ("amount", "reason", "status", "provider_refund_id", "attempts", "error", "created_at")
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class RefundForm(forms.ModelForm):
+    """Staff refund all or part of a payment. The provider is called on save."""
+
+    class Meta:
+        model = Refund
+        fields = ["payment", "amount", "reason"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from main.payments.services import CAPTURED
+
+        self.fields["payment"].queryset = Payment.objects.filter(status__in=CAPTURED)
+        self.fields["amount"].required = False
+        self.fields["amount"].help_text = "Leave empty to refund everything that is left."
+
+    def clean(self):
+        cleaned = super().clean()
+        payment, amount = cleaned.get("payment"), cleaned.get("amount")
+        if payment:
+            left = payment.refundable_amount()
+            if amount is not None and amount > left:
+                self.add_error("amount", f"At most {left} {payment.currency} is left to refund.")
+        return cleaned
+
+
+@admin.register(Refund)
+class RefundAdmin(admin.ModelAdmin):
+    form = RefundForm
+    list_display = ("id", "payment", "amount", "status", "reason", "attempts", "created_at")
+    list_filter = ("status",)
+    search_fields = ("payment__order__buyer__username", "provider_refund_id")
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # a refund can't be changed once it exists
+            return (
+                "payment",
+                "amount",
+                "reason",
+                "status",
+                "provider_refund_id",
+                "attempts",
+                "error",
+                "created_by",
+                "created_at",
+            )
+        return ()
+
+    def save_model(self, request, obj, form, change):
+        from main.payments.services import RefundError, request_refund
+
+        if change:
+            return
+        try:
+            refund = request_refund(
+                obj.payment_id, form.cleaned_data.get("amount"), obj.reason, request.user
+            )
+        except RefundError as exc:
+            self.message_user(request, str(exc), messages.ERROR)
+            return
+        # The admin's success message describes obj, so mirror the saved refund.
+        obj.pk, obj.status, obj.provider_refund_id = (
+            refund.pk,
+            refund.status,
+            refund.provider_refund_id,
+        )
+        if refund.status != Refund.Status.SUCCEEDED:
+            self.message_user(
+                request,
+                f"The provider refused for now, will retry. {refund.error}",
+                messages.WARNING,
+            )
+
+    def has_change_permission(self, request, obj=None):
+        return obj is None or super().has_change_permission(request, obj)
 
 
 @admin.register(Payment)
@@ -246,30 +390,59 @@ class PaymentAdmin(admin.ModelAdmin):
         "currency",
         "external_id",
         "provider_payment_id",
-        "refund_id",
         "redirect_url",
         "failure_reason",
         "created_at",
         "updated_at",
     )
 
-    @admin.action(description="Refund selected payments")
-    def refund_selected(self, request, queryset):
-        from main.payments.services import refund_payment
+    inlines = (RefundInline,)
 
-        ids = queryset.filter(status=Payment.Status.SUCCEEDED).values_list("pk", flat=True)
-        results = [refund_payment(pk) for pk in ids]
-        failed = [p for p in results if p.status != Payment.Status.REFUNDED]
+    @admin.action(description="Refund what is left of the selected payments")
+    def refund_selected(self, request, queryset):
+        from main.payments.services import RefundError, request_refund
+
+        done, failed = 0, 0
+        for payment in queryset:
+            try:
+                refund = request_refund(payment.pk, reason="Refunded by staff", user=request.user)
+            except RefundError:
+                continue
+            if refund.status == Refund.Status.SUCCEEDED:
+                done += 1
+            else:
+                failed += 1
         self.message_user(
             request,
-            f"Refunded {len(results) - len(failed)} payment(s), {len(failed)} failed.",
+            f"Refunded {done} payment(s), {failed} failed.",
             messages.WARNING if failed else messages.SUCCESS,
         )
 
 
-@admin.register(ExchangeRate)
-class ExchangeRateAdmin(admin.ModelAdmin):
-    list_display = ("currency", "rate", "updated_at")
+@admin.register(Currency)
+class CurrencyAdmin(admin.ModelAdmin):
+    list_display = ("code", "rate", "decimals", "enabled", "manual_rate", "updated_at")
+    list_editable = ("enabled",)
+    list_filter = ("enabled", "manual_rate")
+    actions = ("fetch_rates",)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.rate is None:
+            self._fetch(request)
+
+    @admin.action(description="Fetch rates from the feed now")
+    def fetch_rates(self, request, queryset):
+        self._fetch(request)
+
+    def _fetch(self, request):
+        out = StringIO()
+        try:
+            call_command("update_exchange_rates", stdout=out)
+        except CommandError as exc:
+            self.message_user(request, str(exc), messages.ERROR)
+            return
+        self.message_user(request, out.getvalue().strip(), messages.SUCCESS)
 
 
 @admin.register(JobRun)
@@ -279,3 +452,29 @@ class JobRunAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False
+
+
+class ShippingMethodInline(admin.TabularInline):
+    model = ShippingMethod
+    extra = 0
+    fields = ("code", "names", "price", "free_from", "min_days", "max_days", "active", "position")
+
+
+@admin.register(ShippingZone)
+class ShippingZoneAdmin(admin.ModelAdmin):
+    list_display = ("name", "country_list", "method_count")
+    inlines = (ShippingMethodInline,)
+
+    @admin.display(description="Countries")
+    def country_list(self, obj):
+        return ", ".join(obj.countries) or "rest of the world"
+
+    @admin.display(description="Methods")
+    def method_count(self, obj):
+        return obj.methods.count()
+
+
+@admin.register(TaxRate)
+class TaxRateAdmin(admin.ModelAdmin):
+    list_display = ("country", "rate", "name")
+    search_fields = ("country",)

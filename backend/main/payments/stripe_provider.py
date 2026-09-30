@@ -11,12 +11,12 @@ import stripe
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-# Stripe amounts are integers in the smallest currency unit.
-MINOR_UNITS = {"USD": 100, "EUR": 100, "RUB": 100}
-
 
 def to_minor_units(amount, currency):
-    return int((Decimal(amount) * MINOR_UNITS[currency]).to_integral_value())
+    """Stripe amounts are integers in the smallest unit (cents, or yen for JPY)."""
+    from main.currency import info
+
+    return int((Decimal(amount) * 10 ** info(currency).decimals).to_integral_value())
 
 
 class StripeProvider:
@@ -40,6 +40,23 @@ class StripeProvider:
             }
             for item in order.items.all()
         ]
+        # Shipping and tax as their own lines, so the Stripe receipt matches
+        # the order total.
+        for name, amount in (
+            (order.shipping_method or "Shipping", order.shipping_cost),
+            (f"Tax {order.tax_rate}%", order.tax_amount),
+        ):
+            if amount > 0:
+                line_items.append(
+                    {
+                        "quantity": 1,
+                        "price_data": {
+                            "currency": payment.currency.lower(),
+                            "unit_amount": to_minor_units(amount, payment.currency),
+                            "product_data": {"name": name},
+                        },
+                    }
+                )
         session = stripe.checkout.Session.create(
             api_key=self.api_key,
             mode="payment",
@@ -53,19 +70,21 @@ class StripeProvider:
         payment.redirect_url = session.url
         payment.save(update_fields=["external_id", "redirect_url"])
 
-    def refund(self, payment):
+    def refund(self, payment, refund):
         payment_intent = payment.provider_payment_id
         if not payment_intent:
             session = stripe.checkout.Session.retrieve(payment.external_id, api_key=self.api_key)
             payment_intent = session.payment_intent
-        refund = stripe.Refund.create(
+        created = stripe.Refund.create(
             api_key=self.api_key,
             payment_intent=payment_intent,
-            metadata={"payment_id": str(payment.pk), "order_id": str(payment.order_id)},
+            amount=to_minor_units(refund.amount, payment.currency),
+            reason="requested_by_customer",
+            metadata={"refund_id": str(refund.pk), "order_id": str(payment.order_id)},
             # Stripe answers a repeated request with the same refund.
-            idempotency_key=f"verso-refund-{payment.pk}",
+            idempotency_key=f"verso-refund-{refund.pk}",
         )
-        return refund.id
+        return created.id
 
     @staticmethod
     def parse_webhook(payload, signature):

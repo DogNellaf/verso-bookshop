@@ -10,6 +10,7 @@ router.register("books", views.BookViewSet, basename="book")
 urlpatterns = [
     path("", include(router.urls)),
     path("health/", views.HealthView.as_view(), name="api_health"),
+    path("currencies/", views.CurrencyListView.as_view(), name="api_currencies"),
     # OpenAPI schema + interactive docs
     path("schema/", SpectacularAPIView.as_view(), name="api_schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="api_schema"), name="api_docs"),
@@ -25,6 +26,8 @@ urlpatterns = [
     path("cart/items/", views.CartItemsView.as_view(), name="api_cart_items"),
     path("cart/items/<int:pk>/", views.CartItemDetailView.as_view(), name="api_cart_item"),
     path("cart/checkout/", views.CheckoutView.as_view(), name="api_checkout"),
+    path("cart/checkout/info/", views.CheckoutInfoView.as_view(), name="api_checkout_info"),
+    path("cart/quote/", views.QuoteView.as_view(), name="api_quote"),
     # Orders
     path("orders/", views.OrderListView.as_view(), name="api_orders"),
     path("orders/<int:pk>/", views.OrderDetailView.as_view(), name="api_order"),

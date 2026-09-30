@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Verso 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-30 18:45+0000\n"
+"POT-Creation-Date: 2026-09-30 19:51+0000\n"
 "PO-Revision-Date: 2026-09-30 17:10+0000\n"
 "Last-Translator: Verso team\n"
 "Language-Team: Verso team\n"
@@ -15,6 +15,12 @@ msgstr ""
 "Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || "
 "(n%100>=11 && n%100<=14)? 2 : 3);\n"
+
+msgid "Sorry, we don't ship to this country."
+msgstr "К сожалению, в эту страну мы не доставляем."
+
+msgid "This shipping method isn't available for the country."
+msgstr "Этот способ доставки недоступен для выбранной страны."
 
 msgid "Only pending orders can be paid."
 msgstr "Оплатить можно только заказ в статусе «Ожидает»."
@@ -39,6 +45,16 @@ msgstr "Банк отклонил платёж по карте."
 
 msgid "Your card has insufficient funds."
 msgstr "На карте недостаточно средств."
+
+msgid "This payment has nothing left to refund."
+msgstr "По этому платежу больше нечего возвращать."
+
+#, python-format
+msgid "You can refund at most %(amount)s %(currency)s."
+msgstr "Можно вернуть не больше %(amount)s %(currency)s."
+
+msgid "Choose a country from the list."
+msgstr "Выберите страну из списка."
 
 #, python-format
 msgid "“%(title)s” is out of stock."

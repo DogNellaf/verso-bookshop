@@ -51,3 +51,25 @@ class AuthedAPITestCase(APITestCase):
 
     def authenticate(self, user):
         authenticate(self.client, user)
+
+
+def checkout_payload(**overrides):
+    """A valid checkout form for the default shipping zones."""
+    payload = {
+        "full_name": "Test User",
+        "address_line1": "1 Main Street",
+        "city": "Springfield",
+        "postal_code": "12345",
+        "country": "US",
+        "shipping_method": "standard",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def checkout(client, headers=None, **overrides):
+    from django.urls import reverse
+
+    return client.post(
+        reverse("api_checkout"), checkout_payload(**overrides), format="json", **(headers or {})
+    )
