@@ -77,6 +77,10 @@ try {
       await page.goto(`${BASE_URL}/cart`)
       await shoot(page, 'cart')
 
+      await page.goto(`${BASE_URL}/checkout`)
+      await page.locator('.shipping-option').first().waitFor()
+      await shoot(page, 'checkout', { fullPage: true })
+
       await page.goto(`${BASE_URL}/orders`)
       await shoot(page, 'orders', { fullPage: true })
 

@@ -79,10 +79,6 @@
             <span>{{ t('cart.items') }}</span>
             <span>{{ cart.total_quantity }}</span>
           </div>
-          <div class="cart-summary__row">
-            <span>{{ t('cart.shipping') }}</span>
-            <span>{{ t('cart.free') }}</span>
-          </div>
           <div class="cart-summary__total">
             <span>{{ t('cart.total') }}</span>
             <span>{{ formatPrice(cart.total_price, cart.currency) }}</span>
@@ -90,7 +86,7 @@
           <button class="btn btn-primary btn-lg" type="button" :disabled="busy" @click="checkoutHandler">
             {{ busy ? t('cart.processing') : t('cart.checkout') }}
           </button>
-          <p class="cart-summary__note">{{ t('cart.note') }}</p>
+          <p class="cart-summary__note">{{ t('cart.shippingNote') }}</p>
         </aside>
       </div>
 
@@ -104,7 +100,6 @@ import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import {
-  checkout,
   extractApiError,
   getCart,
   removeCartItem,
@@ -166,21 +161,8 @@ const changeQuantity = (item: CartItem, quantity: number) => {
 const remove = (item: CartItem) =>
   mutate(() => removeCartItem(item.id), t('cart.removeError'))
 
-const checkoutHandler = async () => {
-  busy.value = true
-  error.value = null
-  try {
-    const { data: order } = await checkout()
-    setCartCount(0)
-    router.push(`/orders/${order.id}/pay`)
-  } catch (err) {
-    error.value = extractApiError(err, t('cart.checkoutError'))
-    // Stock may have changed under us, show the up-to-date cart.
-    getCart().then(({ data }) => applyCart(data)).catch(() => {})
-  } finally {
-    busy.value = false
-  }
-}
+// Address, shipping and tax are chosen on the checkout page.
+const checkoutHandler = () => router.push('/checkout')
 
 onMounted(fetchCart)
 </script>

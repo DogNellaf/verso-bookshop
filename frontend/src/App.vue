@@ -43,7 +43,7 @@
               :title="t('app.currency')"
               @change="changeCurrency(($event.target as HTMLSelectElement).value)"
             >
-              <option v-for="c in CURRENCIES" :key="c" :value="c">{{ c }}</option>
+              <option v-for="c in available" :key="c" :value="c">{{ c }}</option>
             </select>
 
             <button
@@ -117,8 +117,9 @@ import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useTheme } from './composables/useTheme'
-import { CURRENCIES, currency, isCurrency, setCurrency } from './currency'
+import { available, currency, isCurrency, setAvailable, setCurrency } from './currency'
 import { LOCALES, isLocale, setLocale } from './i18n'
+import { getCurrencies } from './services/api'
 import { initSession, logout, session } from './stores/session'
 import { setPageTitle } from './utils/navigation'
 
@@ -152,5 +153,17 @@ const handleLogout = async () => {
   if (route.meta.requiresAuth) router.push('/')
 }
 
-onMounted(initSession)
+// The currency list is managed in the admin, so it comes from the API.
+const loadCurrencies = async () => {
+  try {
+    setAvailable((await getCurrencies()).data.map((c) => c.code))
+  } catch {
+    /* keep the built-in list */
+  }
+}
+
+onMounted(() => {
+  initSession()
+  loadCurrencies()
+})
 </script>

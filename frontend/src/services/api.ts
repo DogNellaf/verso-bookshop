@@ -141,10 +141,25 @@ export type OrderStatus = 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancel
 export interface Order {
   id: number
   status: OrderStatus
+  subtotal: string
+  shipping_cost: string
+  tax_rate: string
+  tax_amount: string
   total: string
   currency: string
-  /** "refunded", "pending" while a refund is being retried, or null. */
-  refund: 'refunded' | 'pending' | null
+  shipping_method: string
+  delivery_min_days: number | null
+  delivery_max_days: number | null
+  full_name: string
+  address_line1: string
+  address_line2: string
+  city: string
+  postal_code: string
+  country: string
+  phone: string
+  refunded_amount: string
+  /** "refunded", "partial", "pending" while a refund is on its way, or null. */
+  refund: 'refunded' | 'partial' | 'pending' | null
   item_count: number
   created_at: string
   items: OrderItem[]
@@ -204,7 +219,53 @@ export const updateCartItem = (itemId: number, quantity: number) =>
 export const removeCartItem = (itemId: number) =>
   api.delete<Cart>(`/api/cart/items/${itemId}/`)
 
-export const checkout = () => api.post<Order>('/api/cart/checkout/')
+export interface Address {
+  full_name: string
+  address_line1: string
+  address_line2: string
+  city: string
+  postal_code: string
+  country: string
+  phone: string
+}
+
+export interface ShippingOption {
+  code: string
+  name: string
+  price: string
+  free: boolean
+  min_days: number
+  max_days: number
+}
+
+export interface Quote {
+  currency: string
+  subtotal: string
+  shipping: string
+  tax_rate: string
+  tax_name: string
+  tax: string
+  total: string
+  method: ShippingOption
+  methods: ShippingOption[]
+}
+
+export interface CheckoutInfo {
+  /** Countries served, or null when the shop ships everywhere. */
+  countries: string[] | null
+  saved_address: Address | null
+}
+
+export const getCheckoutInfo = () => api.get<CheckoutInfo>('/api/cart/checkout/info/')
+
+export const getQuote = (country: string, shippingMethod?: string) =>
+  api.post<Quote>('/api/cart/quote/', { country, shipping_method: shippingMethod ?? '' })
+
+export const checkout = (address: Address, shippingMethod: string) =>
+  api.post<Order>('/api/cart/checkout/', { ...address, shipping_method: shippingMethod })
+
+export const getCurrencies = () =>
+  api.get<{ code: string; decimals: number }[]>('/api/currencies/')
 
 // ---- Orders ----
 

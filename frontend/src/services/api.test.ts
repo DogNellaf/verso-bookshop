@@ -32,6 +32,9 @@ import {
   checkout,
   confirmDemoPayment,
   extractApiError,
+  getCheckoutInfo,
+  getCurrencies,
+  getQuote,
   getBook,
   getBooks,
   getCart,
@@ -123,11 +126,21 @@ describe('cart', () => {
     expect(h.delete).toHaveBeenCalledWith('/api/cart/items/3/')
   })
 
-  it('reads the cart and checks out', () => {
+  it('reads the cart, quotes shipping and checks out', () => {
     getCart()
     expect(h.get).toHaveBeenCalledWith('/api/cart/')
-    checkout()
-    expect(h.post).toHaveBeenCalledWith('/api/cart/checkout/')
+    getCheckoutInfo()
+    expect(h.get).toHaveBeenCalledWith('/api/cart/checkout/info/')
+    getQuote('DE')
+    expect(h.post).toHaveBeenCalledWith('/api/cart/quote/', { country: 'DE', shipping_method: '' })
+    const address = {
+      full_name: 'A', address_line1: 'B', address_line2: '', city: 'C',
+      postal_code: '1', country: 'DE', phone: '',
+    }
+    checkout(address, 'express')
+    expect(h.post).toHaveBeenCalledWith('/api/cart/checkout/', { ...address, shipping_method: 'express' })
+    getCurrencies()
+    expect(h.get).toHaveBeenCalledWith('/api/currencies/')
   })
 })
 

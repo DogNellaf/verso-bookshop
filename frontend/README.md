@@ -19,9 +19,10 @@ pnpm run smoke        # browser smoke test against a running instance (BASE_URL=
 | `src/router.ts` | Routes (lazy-loaded), auth guards, page titles |
 | `src/services/api.ts` | Typed API client, CSRF header and shared session refresh (tokens stay in httpOnly cookies) |
 | `src/stores/session.ts` | Reactive current user and cart count |
-| `src/pages/` | Home (catalog), BookDetail, Cart, Payment, Orders, Login, Register, NotFound |
+| `src/pages/` | Home (catalog), BookDetail, Cart, Checkout, Payment, Orders, Login, Register, NotFound |
 | `src/components/` | `BookCover` (image or generated cover), `StockBadge` |
 | `src/composables/useTheme.ts` | Light / dark theme |
 | `src/i18n/` | vue-i18n setup, plural rules, EN/RU/FR/DE messages |
-| `src/currency.ts` | Currency choice (USD, EUR, RUB), follows the language until picked |
+| `src/currency.ts` | Currency choice from the list the API offers, follows the language until picked |
+| `src/countries.ts` | ISO country codes with names in the current language |
 | `src/style.css` | Design tokens and component styles, no CSS framework |

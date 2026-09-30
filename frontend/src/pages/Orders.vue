@@ -56,9 +56,34 @@
             </div>
           </div>
 
+          <div v-if="order.country" class="order-card__details">
+            <p>
+              <strong>{{ t('orders.shipTo') }}</strong><br />
+              {{ order.full_name }}<br />
+              {{ order.address_line1 }}<template v-if="order.address_line2">, {{ order.address_line2 }}</template><br />
+              {{ order.postal_code }} {{ order.city }}, {{ countryName(order.country) }}
+            </p>
+            <p v-if="order.shipping_method">
+              <strong>{{ t('orders.delivery') }}</strong><br />
+              {{ order.shipping_method }}<br />
+              <template v-if="order.delivery_min_days !== null">
+                {{ t('checkout.days', { from: order.delivery_min_days, to: order.delivery_max_days }) }}
+              </template>
+            </p>
+          </div>
+
+          <div class="order-card__sums">
+            <div><span>{{ t('checkout.subtotal') }}</span><span>{{ formatPrice(order.subtotal, order.currency) }}</span></div>
+            <div><span>{{ t('cart.shipping') }}</span><span>{{ Number(order.shipping_cost) ? formatPrice(order.shipping_cost, order.currency) : t('cart.free') }}</span></div>
+            <div v-if="Number(order.tax_amount)">
+              <span>{{ t('checkout.tax', { rate: Number(order.tax_rate).toLocaleString(locale) }) }}</span>
+              <span>{{ formatPrice(order.tax_amount, order.currency) }}</span>
+            </div>
+          </div>
+
           <div class="order-card__footer">
             <p v-if="order.refund" :class="['order-card__refund', `order-card__refund--${order.refund}`]">
-              {{ t(`orders.refund.${order.refund}`) }}
+              {{ t(`orders.refund.${order.refund}`, { amount: formatPrice(order.refunded_amount, order.currency) }) }}
             </p>
             <div v-if="canCancel(order)" class="order-card__actions">
               <RouterLink v-if="order.status === 'pending'" :to="`/orders/${order.id}/pay`" class="btn btn-primary btn-sm">
@@ -90,10 +115,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
+import { countryName } from '../countries'
 import { cancelOrder, extractApiError, getOrders, type Order } from '../services/api'
 import { formatDate, formatPrice } from '../utils/format'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const orders = ref<Order[]>([])
 const loading = ref(true)
