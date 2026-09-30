@@ -22,10 +22,18 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
 
       - name: Check for missing migrations
         run: python manage.py makemigrations --check --dry-run
+
+      - name: Validate OpenAPI schema
+        run: python manage.py spectacular --validate --fail-on-warn --file /dev/null
 
       - name: Run tests
         run: python manage.py test

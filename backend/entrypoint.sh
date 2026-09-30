@@ -18,4 +18,12 @@ if [ "$SEED_ON_START" = "1" ]; then
   python manage.py seed || true
 fi
 
+# Optionally create an admin account (DJANGO_SUPERUSER_USERNAME / _EMAIL /
+# _PASSWORD). Ignored if the user already exists.
+if [ -n "$DJANGO_SUPERUSER_USERNAME" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
+  python manage.py createsuperuser --noinput 2>/dev/null \
+    && echo "Superuser '$DJANGO_SUPERUSER_USERNAME' created." \
+    || echo "Superuser '$DJANGO_SUPERUSER_USERNAME' already exists."
+fi
+
 exec "$@"

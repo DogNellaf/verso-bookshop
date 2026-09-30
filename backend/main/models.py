@@ -128,9 +128,7 @@ class Order(models.Model):
         return f"Order #{self.pk} — {self.buyer.username}"
 
     def recalculate_total(self, save=True):
-        self.total = sum(
-            (item.subtotal for item in self.items.all()), decimal.Decimal("0.00")
-        )
+        self.total = sum((item.subtotal for item in self.items.all()), decimal.Decimal("0.00"))
         if save:
             self.save(update_fields=["total"])
         return self.total

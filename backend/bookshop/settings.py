@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "django_filters",
     "corsheaders",
+    "drf_spectacular",
     "main",
 ]
 
@@ -91,7 +92,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LANGUAGE_CODE = "ru-ru"
+LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
@@ -121,7 +122,30 @@ REST_FRAMEWORK = {
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 9,
+    "PAGE_SIZE": 12,
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": os.environ.get("THROTTLE_ANON", "120/min"),
+        "user": os.environ.get("THROTTLE_USER", "600/min"),
+        # Brute-force protection for login / registration.
+        "auth": os.environ.get("THROTTLE_AUTH", "20/min"),
+    },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Verso Bookstore API",
+    "DESCRIPTION": (
+        "REST API for the Verso online bookstore: catalog, JWT auth, "
+        "persistent cart, atomic checkout and order history."
+    ),
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 SIMPLE_JWT = {
@@ -131,15 +155,40 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOWED_ORIGINS = [
-    o for o in os.environ.get(
+    o
+    for o in os.environ.get(
         "CORS_ALLOWED_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",") if o
+    ).split(",")
+    if o
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    o for o in os.environ.get(
+    o
+    for o in os.environ.get(
         "CSRF_TRUSTED_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173",
-    ).split(",") if o
+    ).split(",")
+    if o
 ]
+
+# ---- Production hardening ----
+# Behind nginx the original scheme arrives in X-Forwarded-Proto.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+
+# Enable when the site is served over HTTPS (not the case for the local
+# docker-compose stack on http://localhost:8080).
+if os.environ.get("HTTPS", "False") == "True":
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
+}

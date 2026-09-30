@@ -1,17 +1,18 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.core.cache import cache
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase as BaseAPITestCase
 
 from main.models import Book, Cart, CartItem, Order, OrderItem
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def make_book(**kwargs):
     defaults = dict(
@@ -29,10 +30,18 @@ def make_user(username="testuser", password="testpass123"):
     return User.objects.create_user(username, password=password)
 
 
+class APITestCase(BaseAPITestCase):
+    """Resets the throttle counters (stored in the cache) between tests."""
+
+    def setUp(self):
+        cache.clear()
+
+
 class AuthedAPITestCase(APITestCase):
     """APITestCase that authenticates a user via JWT."""
 
     def setUp(self):
+        super().setUp()
         self.user = make_user()
         self.authenticate(self.user)
 
@@ -46,6 +55,7 @@ class AuthedAPITestCase(APITestCase):
 # ---------------------------------------------------------------------------
 # Model tests
 # ---------------------------------------------------------------------------
+
 
 class BookModelTest(TestCase):
     def setUp(self):
@@ -87,8 +97,11 @@ class OrderModelTest(TestCase):
         self.book = make_book(price=Decimal("15.00"))
         self.order = Order.objects.create(buyer=self.user)
         OrderItem.objects.create(
-            order=self.order, book=self.book, title=self.book.title,
-            unit_price=Decimal("15.00"), quantity=2,
+            order=self.order,
+            book=self.book,
+            title=self.book.title,
+            unit_price=Decimal("15.00"),
+            quantity=2,
         )
 
     def test_recalculate_total(self):
@@ -108,6 +121,7 @@ class OrderModelTest(TestCase):
 # API tests — books
 # ---------------------------------------------------------------------------
 
+
 class BookApiTest(APITestCase):
     def test_list_is_public(self):
         make_book(title="Django for Beginners")
@@ -124,7 +138,7 @@ class BookApiTest(APITestCase):
         self.assertEqual(response.data["results"][0]["title"], "The Pragmatic Programmer")
 
     def test_pagination(self):
-        for i in range(12):
+        for i in range(15):
             make_book(title=f"Book {i:02d}")
         response = self.client.get(reverse("book-list"))
         self.assertIsNotNone(response.data["next"])
@@ -132,6 +146,7 @@ class BookApiTest(APITestCase):
     def test_write_methods_not_allowed(self):
         # Authenticate so we reach the method check (405) rather than 401.
         from rest_framework_simplejwt.tokens import RefreshToken
+
         token = RefreshToken.for_user(make_user()).access_token
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         book = make_book()
@@ -149,33 +164,43 @@ class BookApiTest(APITestCase):
 # API tests — auth (JWT)
 # ---------------------------------------------------------------------------
 
+
 class AuthApiTest(APITestCase):
     def test_register_returns_tokens(self):
-        response = self.client.post(reverse("api_register"), {
-            "username": "newuser",
-            "email": "new@example.com",
-            "password": "SecurePass!99",
-        })
+        response = self.client.post(
+            reverse("api_register"),
+            {
+                "username": "newuser",
+                "email": "new@example.com",
+                "password": "SecurePass!99",
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn("access", response.data)
         self.assertIn("refresh", response.data)
         self.assertTrue(User.objects.filter(username="newuser").exists())
 
     def test_register_rejects_weak_password(self):
-        response = self.client.post(reverse("api_register"), {
-            "username": "weakuser",
-            "email": "w@example.com",
-            "password": "123",
-        })
+        response = self.client.post(
+            reverse("api_register"),
+            {
+                "username": "weakuser",
+                "email": "w@example.com",
+                "password": "123",
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(User.objects.filter(username="weakuser").exists())
 
     def test_token_obtain(self):
         make_user()
-        response = self.client.post(reverse("api_token"), {
-            "username": "testuser",
-            "password": "testpass123",
-        })
+        response = self.client.post(
+            reverse("api_token"),
+            {
+                "username": "testuser",
+                "password": "testpass123",
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("access", response.data)
 
@@ -188,6 +213,7 @@ class AuthApiTest(APITestCase):
     def test_current_user_with_token(self):
         user = make_user()
         from rest_framework_simplejwt.tokens import RefreshToken
+
         token = RefreshToken.for_user(user).access_token
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
         response = self.client.get(reverse("api_current_user"))
@@ -197,6 +223,7 @@ class AuthApiTest(APITestCase):
 # ---------------------------------------------------------------------------
 # API tests — cart
 # ---------------------------------------------------------------------------
+
 
 class CartApiTest(AuthedAPITestCase):
     def setUp(self):
@@ -210,7 +237,9 @@ class CartApiTest(AuthedAPITestCase):
         self.assertEqual(response.data["total_quantity"], 0)
 
     def test_add_item(self):
-        response = self.client.post(reverse("api_cart_items"), {"book": self.book.pk, "quantity": 2})
+        response = self.client.post(
+            reverse("api_cart_items"), {"book": self.book.pk, "quantity": 2}
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["total_quantity"], 2)
         self.assertEqual(Decimal(response.data["total_price"]), Decimal("40.00"))
@@ -223,7 +252,9 @@ class CartApiTest(AuthedAPITestCase):
         self.assertEqual(response.data["items"][0]["quantity"], 3)
 
     def test_add_beyond_stock_rejected(self):
-        response = self.client.post(reverse("api_cart_items"), {"book": self.book.pk, "quantity": 99})
+        response = self.client.post(
+            reverse("api_cart_items"), {"book": self.book.pk, "quantity": 99}
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_update_item_quantity(self):
@@ -242,12 +273,15 @@ class CartApiTest(AuthedAPITestCase):
 
     def test_cart_requires_auth(self):
         self.client.credentials()  # drop token
-        self.assertEqual(self.client.get(reverse("api_cart")).status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(
+            self.client.get(reverse("api_cart")).status_code, status.HTTP_401_UNAUTHORIZED
+        )
 
 
 # ---------------------------------------------------------------------------
 # API tests — checkout & orders
 # ---------------------------------------------------------------------------
+
 
 class CheckoutApiTest(AuthedAPITestCase):
     def setUp(self):
@@ -316,3 +350,131 @@ class CheckoutApiTest(AuthedAPITestCase):
         order = Order.objects.create(buyer=other)
         response = self.client.get(reverse("api_order", args=[order.pk]))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+# ---------------------------------------------------------------------------
+# API tests — catalog filters & ordering
+# ---------------------------------------------------------------------------
+
+
+class BookFilterApiTest(APITestCase):
+    def setUp(self):
+        super().setUp()
+        make_book(title="Cheap", price=Decimal("5.00"), stock=3)
+        make_book(title="Pricey", price=Decimal("50.00"), stock=0)
+        make_book(title="Middle", price=Decimal("20.00"), stock=1)
+
+    def titles(self, **params):
+        response = self.client.get(reverse("book-list"), params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [b["title"] for b in response.data["results"]]
+
+    def test_in_stock_filter(self):
+        self.assertEqual(self.titles(in_stock="true"), ["Cheap", "Middle"])
+        self.assertEqual(self.titles(in_stock="false"), ["Pricey"])
+
+    def test_price_range_filter(self):
+        self.assertEqual(self.titles(min_price="10", max_price="30"), ["Middle"])
+
+    def test_ordering_by_price(self):
+        self.assertEqual(self.titles(ordering="-price"), ["Pricey", "Middle", "Cheap"])
+
+
+# ---------------------------------------------------------------------------
+# API tests — order cancellation
+# ---------------------------------------------------------------------------
+
+
+class OrderCancelApiTest(AuthedAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.book = make_book(price=Decimal("10.00"), stock=5)
+        self.client.post(reverse("api_cart_items"), {"book": self.book.pk, "quantity": 2})
+        self.order_id = self.client.post(reverse("api_checkout")).data["id"]
+
+    def test_cancel_pending_order_restores_stock(self):
+        self.book.refresh_from_db()
+        self.assertEqual(self.book.stock, 3)
+
+        response = self.client.post(reverse("api_order_cancel", args=[self.order_id]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], Order.Status.CANCELLED)
+
+        self.book.refresh_from_db()
+        self.assertEqual(self.book.stock, 5)
+
+    def test_cannot_cancel_twice(self):
+        self.client.post(reverse("api_order_cancel", args=[self.order_id]))
+        response = self.client.post(reverse("api_order_cancel", args=[self.order_id]))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.book.refresh_from_db()
+        self.assertEqual(self.book.stock, 5)  # restored only once
+
+    def test_cannot_cancel_shipped_order(self):
+        Order.objects.filter(pk=self.order_id).update(status=Order.Status.SHIPPED)
+        response = self.client.post(reverse("api_order_cancel", args=[self.order_id]))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_cancel_other_users_order(self):
+        self.authenticate(make_user("other", "otherpass123"))
+        response = self.client.post(reverse("api_order_cancel", args=[self.order_id]))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cancel_survives_deleted_book(self):
+        self.book.delete()
+        response = self.client.post(reverse("api_order_cancel", args=[self.order_id]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# API tests — performance, docs, health, throttling
+# ---------------------------------------------------------------------------
+
+
+class CartQueryCountTest(AuthedAPITestCase):
+    def test_cart_query_count_does_not_grow_with_items(self):
+        cart = Cart.objects.create(buyer=self.user)
+        for i in range(5):
+            CartItem.objects.create(cart=cart, book=make_book(title=f"B{i}"), quantity=1)
+        # user, cart, items+books in one JOIN — independent of the item count.
+        with self.assertNumQueries(3):
+            response = self.client.get(reverse("api_cart"))
+        self.assertEqual(len(response.data["items"]), 5)
+
+
+class InfraApiTest(APITestCase):
+    def test_health(self):
+        response = self.client.get(reverse("api_health"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"status": "ok"})
+
+    def test_openapi_schema(self):
+        response = self.client.get(reverse("api_schema"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn(b"/api/cart/checkout/", response.content)
+
+    def test_swagger_ui(self):
+        self.assertEqual(self.client.get(reverse("api_docs")).status_code, status.HTTP_200_OK)
+
+
+class ThrottleTest(APITestCase):
+    @override_settings(
+        REST_FRAMEWORK={
+            **__import__("django.conf").conf.settings.REST_FRAMEWORK,
+            "DEFAULT_THROTTLE_RATES": {"anon": "100/min", "user": "100/min", "auth": "2/min"},
+        }
+    )
+    def test_login_is_rate_limited(self):
+        from rest_framework.settings import api_settings
+        from rest_framework.throttling import ScopedRateThrottle
+
+        api_settings.reload()
+        ScopedRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
+        try:
+            payload = {"username": "nobody", "password": "wrong"}
+            codes = [self.client.post(reverse("api_token"), payload).status_code for _ in range(3)]
+            self.assertEqual(codes[:2], [401, 401])
+            self.assertEqual(codes[2], status.HTTP_429_TOO_MANY_REQUESTS)
+        finally:
+            api_settings.reload()
+            ScopedRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES

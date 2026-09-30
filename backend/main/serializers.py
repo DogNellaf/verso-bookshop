@@ -16,7 +16,7 @@ class BookSerializer(serializers.ModelSerializer):
         model = Book
         fields = ["id", "title", "author", "description", "price", "stock", "cover", "in_stock"]
 
-    def get_cover(self, obj):
+    def get_cover(self, obj) -> str:
         return obj.cover.url if obj.cover else ""
 
 
@@ -47,6 +47,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 # ---- Cart ----
 
+
 class CartItemSerializer(serializers.ModelSerializer):
     book = BookSerializer(read_only=True)
     subtotal = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -76,6 +77,7 @@ class UpdateCartItemSerializer(serializers.Serializer):
 
 
 # ---- Orders ----
+
 
 class OrderItemSerializer(serializers.ModelSerializer):
     book = BookSerializer(read_only=True)

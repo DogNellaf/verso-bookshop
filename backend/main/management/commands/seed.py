@@ -167,6 +167,77 @@ BOOKS = [
             "science fiction."
         ),
     },
+    {
+        "title": "Moby-Dick",
+        "author": "Herman Melville",
+        "isbn": "9780142437247",
+        "price": "13.49",
+        "stock": 6,
+        "description": (
+            "Captain Ahab's obsessive hunt for the white whale that took his "
+            "leg drives the Pequod and its crew toward catastrophe. A vast, "
+            "strange and thrilling American epic."
+        ),
+    },
+    {
+        "title": "Wuthering Heights",
+        "author": "Emily Brontë",
+        "isbn": "9780141439556",
+        "price": "9.99",
+        "stock": 5,
+        "description": (
+            "On the wild Yorkshire moors, the doomed passion between Heathcliff "
+            "and Catherine Earnshaw echoes down two generations. Dark, "
+            "haunting and utterly original."
+        ),
+    },
+    {
+        "title": "Dracula",
+        "author": "Bram Stoker",
+        "isbn": "9780141439846",
+        "price": "10.99",
+        "stock": 7,
+        "description": (
+            "Told through letters and diaries, the story of Jonathan Harker's "
+            "journey to Transylvania and the ancient count who follows him "
+            "back to England. The definitive vampire novel."
+        ),
+    },
+    {
+        "title": "Lord of the Flies",
+        "author": "William Golding",
+        "isbn": "9780399501487",
+        "price": "11.29",
+        "stock": 2,
+        "description": (
+            "Stranded on a desert island, a group of schoolboys try to govern "
+            "themselves — and descend into savagery. A gripping parable about "
+            "the darkness within."
+        ),
+    },
+    {
+        "title": "The Picture of Dorian Gray",
+        "author": "Oscar Wilde",
+        "isbn": "9780141439570",
+        "price": "8.49",
+        "stock": 11,
+        "description": (
+            "A beautiful young man stays forever youthful while his portrait "
+            "records every sin. Wilde's witty, decadent and chilling tale of "
+            "vanity and corruption."
+        ),
+    },
+    {
+        "title": "The Old Man and the Sea",
+        "author": "Ernest Hemingway",
+        "isbn": "9780684801223",
+        "price": "9.29",
+        "stock": 0,
+        "description": (
+            "An aging Cuban fisherman battles a giant marlin far out in the Gulf "
+            "Stream. A spare, luminous story of endurance and dignity in defeat."
+        ),
+    },
 ]
 
 DEMO_USERNAME = "demo"
@@ -240,9 +311,12 @@ class Command(BaseCommand):
 
             books_by_title[book.title] = book
 
-            if not options["no_covers"] and not book.cover:
-                if self._download_cover(book, data["isbn"]):
-                    covers += 1
+            if (
+                not options["no_covers"]
+                and not book.cover
+                and self._download_cover(book, data["isbn"])
+            ):
+                covers += 1
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -259,17 +333,13 @@ class Command(BaseCommand):
             with urllib.request.urlopen(request, timeout=20) as response:
                 content = response.read()
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            self.stdout.write(
-                self.style.WARNING(f"  ! cover for '{book.title}' failed: {exc}")
-            )
+            self.stdout.write(self.style.WARNING(f"  ! cover for '{book.title}' failed: {exc}"))
             return False
 
         # Open Library returns a tiny blank image when a cover is missing;
         # skip anything suspiciously small.
         if len(content) < 1000:
-            self.stdout.write(
-                self.style.WARNING(f"  ! no cover available for '{book.title}'")
-            )
+            self.stdout.write(self.style.WARNING(f"  ! no cover available for '{book.title}'"))
             return False
 
         book.cover.save(f"{isbn}.jpg", ContentFile(content), save=True)
