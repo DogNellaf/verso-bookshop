@@ -22,7 +22,9 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt ruff
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q gettext
+          pip install -r requirements.txt ruff coverage
 
       - name: Lint
         run: |
@@ -35,8 +37,15 @@ jobs:
       - name: Validate OpenAPI schema
         run: python manage.py spectacular --validate --fail-on-warn --file /dev/null
 
-      - name: Run tests
-        run: python manage.py test
+      - name: Check translations are compiled
+        run: |
+          python manage.py compilemessages --ignore=.venv
+          git diff --exit-code -- locale/
+
+      - name: Run tests with coverage
+        run: |
+          coverage run manage.py test
+          coverage report --fail-under=90
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -62,8 +71,8 @@ jobs:
       - name: Type-check
         run: pnpm run type-check
 
-      - name: Run tests
-        run: pnpm run test
+      - name: Run tests with coverage
+        run: pnpm run coverage
 
       - name: Build
         run: pnpm run build

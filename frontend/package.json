@@ -8,16 +8,19 @@
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit",
     "test": "vitest run",
-    "screenshots": "node scripts/screenshots.mjs"
+    "screenshots": "node scripts/screenshots.mjs",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "axios": "^1.18.1",
     "vue": "^3.5.39",
+    "vue-i18n": "^11.4.12",
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "^24",
     "@vitejs/plugin-vue": "^6.0.7",
+    "@vitest/coverage-v8": "2.1.9",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^25.0.1",
     "playwright": "1.56.1",

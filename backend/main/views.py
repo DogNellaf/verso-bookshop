@@ -1,6 +1,9 @@
 from django.db import connection, transaction
-from django.db.models import Prefetch, prefetch_related_objects
+from django.db.models import OuterRef, Prefetch, Subquery, prefetch_related_objects
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
+from django.utils.translation import gettext as _
+from django.utils.translation import ngettext
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import filters, generics, permissions, serializers, status, viewsets
@@ -11,7 +14,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from main.filters import BookFilter
-from main.models import Book, Cart, CartItem, Order, OrderItem
+from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
 from main.serializers import (
     AddCartItemSerializer,
     BookSerializer,
@@ -20,7 +23,18 @@ from main.serializers import (
     RegisterSerializer,
     UpdateCartItemSerializer,
     UserSerializer,
+    current_language,
 )
+
+
+def stock_message(book):
+    if book.stock == 0:
+        return _("“%(title)s” is out of stock.") % {"title": book.title}
+    return ngettext(
+        "Only %(count)d copy of “%(title)s” is in stock.",
+        "Only %(count)d copies of “%(title)s” are in stock.",
+        book.stock,
+    ) % {"count": book.stock, "title": book.title}
 
 
 def tokens_for(user):
@@ -31,13 +45,41 @@ def tokens_for(user):
 # ---- Books ----
 
 
+class LocalizedOrderingFilter(filters.OrderingFilter):
+    """Sort by title/author in the active language rather than the English original."""
+
+    localized = {"title": "title_i18n", "author": "author_i18n"}
+
+    def get_ordering(self, request, queryset, view):
+        ordering = super().get_ordering(request, queryset, view) or []
+        localized = []
+        for field in ordering:
+            name = field.lstrip("-")
+            localized.append(field.replace(name, self.localized.get(name, name)))
+        return localized
+
+
 class BookViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Book.objects.all()
     serializer_class = BookSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, LocalizedOrderingFilter]
     filterset_class = BookFilter
-    search_fields = ["title", "author"]
+    # Searching matches the original and every translation of title/author.
+    search_fields = ["title", "author", "translations__title", "translations__author"]
     ordering_fields = ["title", "author", "price"]
+    ordering = ["title"]
+
+    def get_queryset(self):
+        translated = BookTranslation.objects.filter(
+            book=OuterRef("pk"), language=current_language()
+        )
+        return (
+            Book.objects.prefetch_related("translations")
+            .annotate(
+                title_i18n=Coalesce(Subquery(translated.values("title")[:1]), "title"),
+                author_i18n=Coalesce(Subquery(translated.values("author")[:1]), "author"),
+            )
+            .order_by("title_i18n")
+        )
 
 
 # ---- Health ----
@@ -114,9 +156,8 @@ def get_cart(user):
 
 def cart_payload(cart):
     """Serialize a cart with its items and books fetched in a single query."""
-    prefetch_related_objects(
-        [cart], Prefetch("items", queryset=CartItem.objects.select_related("book"))
-    )
+    items = CartItem.objects.select_related("book").prefetch_related("book__translations")
+    prefetch_related_objects([cart], Prefetch("items", queryset=items))
     return CartSerializer(cart).data
 
 
@@ -144,7 +185,7 @@ class CartItemsView(APIView):
         item, created = CartItem.objects.get_or_create(cart=cart, book=book)
         new_quantity = quantity if created else item.quantity + quantity
         if new_quantity > book.stock:
-            raise ValidationError({"quantity": f"Only {book.stock} in stock for '{book.title}'."})
+            raise ValidationError({"quantity": stock_message(book)})
         item.quantity = new_quantity
         item.save()
         return Response(cart_payload(cart), status=status.HTTP_201_CREATED)
@@ -169,9 +210,7 @@ class CartItemDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         quantity = serializer.validated_data["quantity"]
         if quantity > item.book.stock:
-            raise ValidationError(
-                {"quantity": f"Only {item.book.stock} in stock for '{item.book.title}'."}
-            )
+            raise ValidationError({"quantity": stock_message(item.book)})
         item.quantity = quantity
         item.save()
         return Response(cart_payload(item.cart))
@@ -195,7 +234,7 @@ class CheckoutView(APIView):
             cart = get_cart(request.user)
             items = list(cart.items.select_related("book"))
             if not items:
-                raise ValidationError({"detail": "Your cart is empty."})
+                raise ValidationError({"detail": _("Your cart is empty.")})
 
             # Lock the affected book rows to prevent overselling under
             # concurrent checkouts.
@@ -207,9 +246,9 @@ class CheckoutView(APIView):
             for item in items:
                 book = stock[item.book_id]
                 if item.quantity > book.stock:
-                    errors.append(f"'{book.title}': only {book.stock} left.")
+                    errors.append(stock_message(book))
             if errors:
-                raise ValidationError({"detail": "Not enough stock.", "items": errors})
+                raise ValidationError({"detail": _("Not enough stock."), "items": errors})
 
             order = Order.objects.create(buyer=request.user, status=Order.Status.PENDING)
             order_items = []
@@ -241,7 +280,7 @@ class CheckoutView(APIView):
 def user_orders(user):
     if not user.is_authenticated:  # schema generation calls this anonymously
         return Order.objects.none()
-    return Order.objects.filter(buyer=user).prefetch_related("items__book")
+    return Order.objects.filter(buyer=user).prefetch_related("items__book__translations")
 
 
 class OrderListView(generics.ListAPIView):
@@ -271,9 +310,7 @@ class OrderCancelView(APIView):
         with transaction.atomic():
             order = get_object_or_404(Order.objects.select_for_update(), pk=pk, buyer=request.user)
             if order.status != Order.Status.PENDING:
-                raise ValidationError(
-                    {"detail": f"Only pending orders can be cancelled (status: {order.status})."}
-                )
+                raise ValidationError({"detail": _("Only pending orders can be cancelled.")})
 
             items = list(order.items.all())
             book_ids = [item.book_id for item in items if item.book_id]

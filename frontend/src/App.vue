@@ -1,11 +1,11 @@
 <template>
   <div class="bs-root">
-    <a href="#main" class="skip-link">Skip to content</a>
+    <a href="#main" class="skip-link">{{ t('app.skip') }}</a>
 
     <header class="bs-header">
       <div class="bs-container">
         <div class="bs-header__inner">
-          <RouterLink to="/" class="bs-brand" aria-label="Verso — home">
+          <RouterLink to="/" class="bs-brand" :aria-label="t('app.home')">
             <svg class="bs-brand__mark" viewBox="0 0 32 32" aria-hidden="true">
               <defs>
                 <linearGradient id="verso-grad" x1="0" y1="0" x2="1" y2="1">
@@ -24,11 +24,22 @@
           </RouterLink>
 
           <nav class="bs-header__nav" aria-label="Main">
+            <label class="sr-only" for="locale">{{ t('app.language') }}</label>
+            <select
+              id="locale"
+              class="locale-select"
+              :value="locale"
+              :title="t('app.language')"
+              @change="changeLocale(($event.target as HTMLSelectElement).value)"
+            >
+              <option v-for="l in LOCALES" :key="l.code" :value="l.code" :lang="l.code">{{ l.label }}</option>
+            </select>
+
             <button
               class="icon-btn"
               type="button"
-              :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
-              :title="theme === 'dark' ? 'Light theme' : 'Dark theme'"
+              :aria-label="theme === 'dark' ? t('app.themeToLight') : t('app.themeToDark')"
+              :title="theme === 'dark' ? t('app.themeToLight') : t('app.themeToDark')"
               @click="toggleTheme"
             >
               <svg v-if="theme === 'dark'" viewBox="0 0 24 24" aria-hidden="true">
@@ -50,13 +61,23 @@
             </RouterLink>
 
             <template v-if="session.user">
-              <span class="bs-nav-username">Hi, {{ session.user.username }}</span>
-              <RouterLink to="/orders" class="bs-nav-link">My Orders</RouterLink>
-              <button class="btn btn-danger btn-sm" type="button" @click="handleLogout">Logout</button>
+              <span class="bs-nav-username">{{ t('app.hi', { name: session.user.username }) }}</span>
+              <RouterLink to="/orders" class="bs-nav-link bs-nav-link--icon" :aria-label="t('app.myOrders')">
+                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 3h9l3 3v15H6z" /><path d="M9 10h6M9 14h6M9 18h3" />
+                </svg>
+                <span class="nav-text">{{ t('app.myOrders') }}</span>
+              </RouterLink>
+              <button class="btn btn-danger btn-sm bs-logout" type="button" :aria-label="t('app.logout')" @click="handleLogout">
+                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />
+                </svg>
+                <span class="nav-text">{{ t('app.logout') }}</span>
+              </button>
             </template>
             <template v-else-if="session.ready">
-              <RouterLink to="/login" class="bs-nav-link">Login</RouterLink>
-              <RouterLink to="/register" class="btn btn-primary btn-sm">Register</RouterLink>
+              <RouterLink to="/login" class="bs-nav-link">{{ t('app.login') }}</RouterLink>
+              <RouterLink to="/register" class="btn btn-primary btn-sm">{{ t('app.register') }}</RouterLink>
             </template>
           </nav>
         </div>
@@ -64,15 +85,16 @@
     </header>
 
     <div id="main" class="bs-page" tabindex="-1">
-      <RouterView />
+      <!-- Remount the page on language change so API content is refetched in it. -->
+      <RouterView :key="locale" />
     </div>
 
     <footer class="bs-footer">
       <div class="bs-container bs-footer__inner">
-        <p>© {{ year }} Verso — a portfolio demo store. No real payments are taken.</p>
+        <p>{{ t('app.footer', { year }) }}</p>
         <nav class="bs-footer__links" aria-label="Footer">
-          <a href="/api/docs/" target="_blank" rel="noopener">API docs</a>
-          <a href="https://github.com/DogNellaf/verso-bookshop" target="_blank" rel="noopener">Source on GitHub</a>
+          <a href="/api/docs/" target="_blank" rel="noopener">{{ t('app.apiDocs') }}</a>
+          <a href="https://github.com/DogNellaf/verso-bookshop" target="_blank" rel="noopener">{{ t('app.source') }}</a>
         </nav>
       </div>
     </footer>
@@ -80,19 +102,34 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useTheme } from './composables/useTheme'
+import { LOCALES, isLocale, setLocale } from './i18n'
 import { initSession, logout, session } from './stores/session'
+import { setPageTitle } from './utils/navigation'
 
 const router = useRouter()
 const route = useRoute()
+const { t, locale } = useI18n()
 const { theme, toggle: toggleTheme } = useTheme()
 const year = new Date().getFullYear()
 
 const cartLabel = computed(() =>
-  session.cartCount > 0 ? `Cart, ${session.cartCount} items` : 'Cart',
+  session.cartCount > 0
+    ? t('app.cartWithCount', { count: session.cartCount }, session.cartCount)
+    : t('app.cart'),
 )
+
+const changeLocale = (value: string) => {
+  if (isLocale(value)) setLocale(value)
+}
+
+// Re-translate the static page title when the language changes.
+watch(locale, () => {
+  if (route.meta.titleKey) setPageTitle(t(route.meta.titleKey))
+})
 
 const handleLogout = () => {
   logout()

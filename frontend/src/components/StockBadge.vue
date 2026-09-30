@@ -4,8 +4,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ stock: number }>()
+const { t } = useI18n()
 
 const LOW_STOCK = 3
 
@@ -16,8 +18,8 @@ const badgeClass = computed(() => {
 })
 
 const label = computed(() => {
-  if (props.stock <= 0) return 'Out of stock'
-  if (props.stock <= LOW_STOCK) return `Only ${props.stock} left`
-  return 'In stock'
+  if (props.stock <= 0) return t('stock.out')
+  if (props.stock <= LOW_STOCK) return t('stock.low', { n: props.stock })
+  return t('stock.in')
 })
 </script>

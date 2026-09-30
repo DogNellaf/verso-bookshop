@@ -1,0 +1,39 @@
+# Verso bookstore API messages.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Verso 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-30 17:07+0000\n"
+"PO-Revision-Date: 2026-09-30 17:10+0000\n"
+"Last-Translator: Verso team\n"
+"Language-Team: Verso team\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: main/views.py:30
+#, python-format
+msgid "“%(title)s” is out of stock."
+msgstr "« %(title)s » est en rupture de stock."
+
+#: main/views.py:32
+#, python-format
+msgid "Only %(count)d copy of “%(title)s” is in stock."
+msgid_plural "Only %(count)d copies of “%(title)s” are in stock."
+msgstr[0] "Il ne reste que %(count)d exemplaire de « %(title)s »."
+msgstr[1] "Il ne reste que %(count)d exemplaires de « %(title)s »."
+
+#: main/views.py:208
+msgid "Your cart is empty."
+msgstr "Votre panier est vide."
+
+#: main/views.py:222
+msgid "Not enough stock."
+msgstr "Stock insuffisant."
+
+#: main/views.py:284
+msgid "Only pending orders can be cancelled."
+msgstr "Seules les commandes en attente peuvent être annulées."

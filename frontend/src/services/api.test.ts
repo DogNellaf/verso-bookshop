@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGet, mockPost, mockPatch, mockDelete } = vi.hoisted(() => ({
+const { mockGet, mockPost, mockPatch, mockDelete, requestUse } = vi.hoisted(() => ({
   mockGet: vi.fn(),
   mockPost: vi.fn(),
   mockPatch: vi.fn(),
   mockDelete: vi.fn(),
+  requestUse: vi.fn(),
 }))
 
 vi.mock('axios', () => {
@@ -14,7 +15,7 @@ vi.mock('axios', () => {
     patch: mockPatch,
     delete: mockDelete,
     interceptors: {
-      request: { use: vi.fn() },
+      request: { use: requestUse },
       response: { use: vi.fn() },
     },
   }
@@ -39,6 +40,7 @@ import {
   setTokens,
   updateCartItem,
 } from './api'
+import { setLocale } from '../i18n'
 
 beforeEach(() => {
   mockGet.mockReset()
@@ -159,5 +161,21 @@ describe('extractApiError', () => {
 
   it('falls back with no response body', () => {
     expect(extractApiError(new Error('network'), 'fallback')).toBe('fallback')
+  })
+})
+
+describe('request interceptor', () => {
+  const intercept = (headers: Record<string, string> = {}) =>
+    requestUse.mock.calls[0][0]({ headers }) as { headers: Record<string, string> }
+
+  it('sends the UI language so API errors are translated', () => {
+    expect(intercept().headers['Accept-Language']).toBe('en')
+    setLocale('ru')
+    expect(intercept().headers['Accept-Language']).toBe('ru')
+  })
+
+  it('attaches the bearer token when logged in', () => {
+    setTokens('abc')
+    expect(intercept().headers.Authorization).toBe('Bearer abc')
   })
 })

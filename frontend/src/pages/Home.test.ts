@@ -1,5 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setLocale } from '../i18n'
 import { createTestRouter } from '../test/testRouter'
 
 const mockGetBooks = vi.fn()
@@ -97,5 +98,15 @@ describe('Home.vue', () => {
     await reset!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({})
+  })
+
+  it('renders in the selected language with correct plurals', async () => {
+    setLocale('ru')
+    mockGetBooks.mockResolvedValue(page({ count: 3 }))
+    const { wrapper } = await mountAt()
+
+    expect(wrapper.text()).toContain('Найдите свою следующую любимую книгу')
+    expect(wrapper.text()).toContain('3 книги')
+    expect(wrapper.text()).toContain('В наличии')
   })
 })

@@ -14,6 +14,9 @@ importers:
       vue:
         specifier: ^3.5.39
         version: 3.5.39(typescript@5.7.3)
+      vue-i18n:
+        specifier: ^11.4.12
+        version: 11.4.12(vue@3.5.39(typescript@5.7.3))
       vue-router:
         specifier: ^5.1.0
         version: 5.1.0(@vue/compiler-sfc@3.5.39)(rolldown@1.1.4)(rollup@4.62.2)(vite@8.1.3(@types/node@24.10.4)(jiti@2.6.1)(yaml@2.9.0))(vue@3.5.39(typescript@5.7.3))
@@ -24,6 +27,9 @@ importers:
       '@vitejs/plugin-vue':
         specifier: ^6.0.7
         version: 6.0.7(vite@8.1.3(@types/node@24.10.4)(jiti@2.6.1)(yaml@2.9.0))(vue@3.5.39(typescript@5.7.3))
+      '@vitest/coverage-v8':
+        specifier: 2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.10.4)(jsdom@25.0.1)(lightningcss@1.32.0))
       '@vue/test-utils':
         specifier: ^2.4.6
         version: 2.4.11(@vue/compiler-dom@3.5.39)(@vue/server-renderer@3.5.39(vue@3.5.39(typescript@5.7.3)))(vue@3.5.39(typescript@5.7.3))
@@ -47,6 +53,10 @@ importers:
         version: 3.3.6(typescript@5.7.3)
 
 packages:
+
+  '@ampproject/remapping@2.3.0':
+    resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
+    engines: {node: '>=6.0.0'}
 
   '@asamuzakjp/css-color@3.2.0':
     resolution: {integrity: sha512-K1A6z8tS3XsmCMM86xoWdn7Fkdn9m6RSVtocUrJYIwZnFVkng/PvkEoWtOWmP+Scc6saYWHWZYbndEEXxl24jw==}
@@ -88,6 +98,9 @@ packages:
   '@babel/types@8.0.0':
     resolution: {integrity: sha512-K8ponJDxBwDHigkeFqaqT5wLGl4bTlwMafR8k7b5CPxr6Ww+UG9ls8Yx6Tcpboxu97eeGVEEyKcHmEyOwN1vSw==}
     engines: {node: ^22.18.0 || >=24.11.0}
+
+  '@bcoe/v8-coverage@0.2.3':
+    resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -264,9 +277,29 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@intlify/core-base@11.4.12':
+    resolution: {integrity: sha512-tvYUWgMJmk+UvLFa7ck8uRQ9m19tTI9B2e01KCAjBV7+HN2zFLnnORvMO85hM1P8DIw4MTvot1ZSBUdoR+F6jA==}
+    engines: {node: '>= 22'}
+
+  '@intlify/devtools-types@11.4.12':
+    resolution: {integrity: sha512-Ctkcs8DQItaEL9HHdkyasFFcZFP59iBvZmrjiA7b72JFq/JlI6c6GPQHN7oEwbYTo8rndPMqNY7SX71aPm4MkA==}
+    engines: {node: '>= 22'}
+
+  '@intlify/message-compiler@11.4.12':
+    resolution: {integrity: sha512-kBczk9r44fdBYnkC5tXRWa/UaA+e9NglXE3cX7jPnDd2nHzoFHYrKGfIbn8JFZpMA9omexZZo2WxOpTvlHdjsw==}
+    engines: {node: '>= 22'}
+
+  '@intlify/shared@11.4.12':
+    resolution: {integrity: sha512-ojfehaXMFrGFcSnK3cJPaMxlrSXT8FwZUG9H4i+WKX4OFD4Yl1WKdTmfwoC0REnwIfTrnt1QhRtd8kwi/te6bQ==}
+    engines: {node: '>= 22'}
+
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
     engines: {node: '>=12'}
+
+  '@istanbuljs/schema@0.1.6':
+    resolution: {integrity: sha512-+Sg6GCR/wy1oSmQDFq4LQDAhm3ETKnorxN+y5nbLULOR3P0c14f2Wurzj3/xqPXtasLFfHd5iRFQ7AJt4KH2cw==}
+    engines: {node: '>=8'}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -555,6 +588,15 @@ packages:
       vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
       vue: ^3.2.25
 
+  '@vitest/coverage-v8@2.1.9':
+    resolution: {integrity: sha512-Z2cOr0ksM00MpEfyVE8KXIYPEcBFxdbLSs56L8PO0QQMxt/6bDj45uQfxoc96v05KW3clk7vvgP0qfDit9DmfQ==}
+    peerDependencies:
+      '@vitest/browser': 2.1.9
+      vitest: 2.1.9
+    peerDependenciesMeta:
+      '@vitest/browser':
+        optional: true
+
   '@vitest/expect@2.1.9':
     resolution: {integrity: sha512-UJCIkTBenHeKT1TTlKMJWy1laZewsRIzYighyYiJKZreqtdxSos/S1t+ktRMQWu2CKqaarrkeszJx1cgC5tGZw==}
 
@@ -613,6 +655,9 @@ packages:
 
   '@vue/compiler-ssr@3.5.39':
     resolution: {integrity: sha512-Ce7/wvwMHai74bdszfXExdazFigYnlF9zgCmEQUcM1j0fOymlouZ7XilTYNo8oUjhlnjYOZbGrcYKuqjz89Ucw==}
+
+  '@vue/devtools-api@6.6.4':
+    resolution: {integrity: sha512-sGhTPMuXqZ1rVOk32RylztWkfXTRhuS7vgAKv0zjqk8gbsHkJ7xfFf+jbySxt7tWObEJwyKaHMikV/WGDiQm8g==}
 
   '@vue/devtools-api@8.1.5':
     resolution: {integrity: sha512-YJipMVAKe5wT5CWf5kTYCaNV7NMNjFVxJkIkJaJ4W/nCxEBzlZzrOsYKeCymdCrFZmBS/+wTWFoUs3Jf/Q6XSQ==}
@@ -710,11 +755,19 @@ packages:
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
+  balanced-match@4.0.4:
+    resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
+    engines: {node: 18 || 20 || >=22}
+
   birpc@2.9.0:
     resolution: {integrity: sha512-KrayHS5pBi69Xi9JmvoqrIgYGDkD6mcSe/i6YKi3w5kekCLzrX4+nawcXqrj2tIp50Kw/mT/s3p+GVK0A0sKxw==}
 
   brace-expansion@2.1.1:
     resolution: {integrity: sha512-WR1cURNjuvBLMZBMbqM0UoE+WAfdUcEV1ccD8PVBVOI+Z3ND4+SZbN8RsfT2bMuG1qwz5RFvPukSZm5fF2D5eA==}
+
+  brace-expansion@5.0.12:
+    resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
+    engines: {node: 20 || >=22}
 
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
@@ -918,6 +971,10 @@ packages:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
 
+  has-flag@4.0.0:
+    resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
+    engines: {node: '>=8'}
+
   has-symbols@1.1.0:
     resolution: {integrity: sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==}
     engines: {node: '>= 0.4'}
@@ -936,6 +993,9 @@ packages:
   html-encoding-sniffer@4.0.0:
     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
     engines: {node: '>=18'}
+
+  html-escaper@2.0.2:
+    resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
 
   http-proxy-agent@7.0.2:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
@@ -965,6 +1025,22 @@ packages:
 
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
+
+  istanbul-lib-coverage@3.2.2:
+    resolution: {integrity: sha512-O8dpsF+r0WV/8MNRKfnmrtCWhuKjxrq2w+jpzBL5UZKTi2LeVWnWOmWRxFlesJONmc+wLAGvKQZEOanko0LFTg==}
+    engines: {node: '>=8'}
+
+  istanbul-lib-report@3.0.1:
+    resolution: {integrity: sha512-GCfE1mtsHGOELCU8e/Z7YWzpmybrx/+dSTfLrvY8qRmaY6zXTKWn6WQIjaAFw069icm6GVMNkgu0NzI4iPZUNw==}
+    engines: {node: '>=10'}
+
+  istanbul-lib-source-maps@5.0.6:
+    resolution: {integrity: sha512-yg2d+Em4KizZC5niWhQaIomgf5WlL4vOOjZ5xGCmF8SnPE/mDWWXgvRExdcpCgh9lLRRa1/fSYp2ymmbJ1pI+A==}
+    engines: {node: '>=10'}
+
+  istanbul-reports@3.2.0:
+    resolution: {integrity: sha512-HGYWWS/ehqTV3xN10i23tkPkpH46MLCIMFNCaaKNavAXTF1RkqxawEPtnjnGZ6XKSInBKkiOA5BKS+aZiY3AvA==}
+    engines: {node: '>=8'}
 
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
@@ -1091,6 +1167,13 @@ packages:
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
 
+  magicast@0.3.5:
+    resolution: {integrity: sha512-L0WhttDl+2BOsybvEOLK7fW3UA0OQ0IQ2d6Zl2x/a6vVRs3bAY0ECOSHHeL5jD+SbOpOCUEi0y1DgHEn9Qn1AQ==}
+
+  make-dir@4.0.0:
+    resolution: {integrity: sha512-hXdUTZYIVOt1Ex//jAQi+wTZZpUpwBj/0QsOzqegb3rGMMeJiSEu5xLHnYfBrRV4RH2+OCSOO95Is/7x1WJ4bw==}
+    engines: {node: '>=10'}
+
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
@@ -1102,6 +1185,10 @@ packages:
   mime-types@2.1.35:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
+
+  minimatch@10.2.6:
+    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
+    engines: {node: 18 || 20 || >=22}
 
   minimatch@9.0.9:
     resolution: {integrity: sha512-OBwBN9AL4dqmETlpS2zasx+vTeWclWzkblfZk7KTA5j3jeOONz/tRCnZomUyvNg83wL5Zv9Ss6HMJXAgL8R2Yg==}
@@ -1280,8 +1367,16 @@ packages:
     resolution: {integrity: sha512-yDPMNjp4WyfYBkHnjIRLfca1i6KMyGCtsVgoKe/z1+6vukgaENdgGBZt+ZmKPc4gavvEZ5OgHfHdrazhgNyG7w==}
     engines: {node: '>=12'}
 
+  supports-color@7.2.0:
+    resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
+    engines: {node: '>=8'}
+
   symbol-tree@3.2.4:
     resolution: {integrity: sha512-9QNk5KwDF+Bvz+PyObkmSYjI5ksVUYtjW7AU22r2NKcfLJcXp96hkDWU3+XndOsUb+AQ9QhfzfCT2O+CNWT5Tw==}
+
+  test-exclude@7.0.2:
+    resolution: {integrity: sha512-u9E6A+ZDYdp7a4WnarkXPZOx8Ilz46+kby6p1yZ8zsGTz9gYa6FIS7lj2oezzNKmtdyyJNNmmXDppga5GB7kSw==}
+    engines: {node: '>=18'}
 
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
@@ -1481,6 +1576,12 @@ packages:
   vue-component-type-helpers@3.3.6:
     resolution: {integrity: sha512-FkljacAwJ9BUoSUdpFe3VDy0sGigNlTH9+2zcXUWmZOjN8swiCkl3t48wOJun0OsUd2cEIda1l04tsxMiKIIrQ==}
 
+  vue-i18n@11.4.12:
+    resolution: {integrity: sha512-yvArvvo3ErLKFNlQrZUGmRkxL/ctM5xFYtE9FxTKiE/PalWP1bnTopBgbSRGLluYEyYSNl1Pt8l2J7zVavbXww==}
+    engines: {node: '>= 22'}
+    peerDependencies:
+      vue: ^3.0.0
+
   vue-router@5.1.0:
     resolution: {integrity: sha512-HAbiLzLEHQwxPgvsbOJDAwtavszEgLwri6XfyrsPECIFez8+59xc9LofWVdc/HEaSRT822lJ8H9Ns38VVond5g==}
     peerDependencies:
@@ -1581,6 +1682,11 @@ packages:
 
 snapshots:
 
+  '@ampproject/remapping@2.3.0':
+    dependencies:
+      '@jridgewell/gen-mapping': 0.3.13
+      '@jridgewell/trace-mapping': 0.3.31
+
   '@asamuzakjp/css-color@3.2.0':
     dependencies:
       '@csstools/css-calc': 2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
@@ -1623,6 +1729,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 8.0.0
       '@babel/helper-validator-identifier': 8.0.2
+
+  '@bcoe/v8-coverage@0.2.3': {}
 
   '@csstools/color-helpers@5.1.0': {}
 
@@ -1729,6 +1837,24 @@ snapshots:
   '@esbuild/win32-x64@0.21.5':
     optional: true
 
+  '@intlify/core-base@11.4.12':
+    dependencies:
+      '@intlify/devtools-types': 11.4.12
+      '@intlify/message-compiler': 11.4.12
+      '@intlify/shared': 11.4.12
+
+  '@intlify/devtools-types@11.4.12':
+    dependencies:
+      '@intlify/core-base': 11.4.12
+      '@intlify/shared': 11.4.12
+
+  '@intlify/message-compiler@11.4.12':
+    dependencies:
+      '@intlify/shared': 11.4.12
+      source-map-js: 1.2.1
+
+  '@intlify/shared@11.4.12': {}
+
   '@isaacs/cliui@8.0.2':
     dependencies:
       string-width: 5.1.2
@@ -1737,6 +1863,8 @@ snapshots:
       strip-ansi-cjs: strip-ansi@6.0.1
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
+
+  '@istanbuljs/schema@0.1.6': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -1916,6 +2044,24 @@ snapshots:
       vite: 8.1.3(@types/node@24.10.4)(jiti@2.6.1)(yaml@2.9.0)
       vue: 3.5.39(typescript@5.7.3)
 
+  '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@24.10.4)(jsdom@25.0.1)(lightningcss@1.32.0))':
+    dependencies:
+      '@ampproject/remapping': 2.3.0
+      '@bcoe/v8-coverage': 0.2.3
+      debug: 4.4.3
+      istanbul-lib-coverage: 3.2.2
+      istanbul-lib-report: 3.0.1
+      istanbul-lib-source-maps: 5.0.6
+      istanbul-reports: 3.2.0
+      magic-string: 0.30.21
+      magicast: 0.3.5
+      std-env: 3.10.0
+      test-exclude: 7.0.2
+      tinyrainbow: 1.2.0
+      vitest: 2.1.9(@types/node@24.10.4)(jsdom@25.0.1)(lightningcss@1.32.0)
+    transitivePeerDependencies:
+      - supports-color
+
   '@vitest/expect@2.1.9':
     dependencies:
       '@vitest/spy': 2.1.9
@@ -2007,6 +2153,8 @@ snapshots:
     dependencies:
       '@vue/compiler-dom': 3.5.39
       '@vue/shared': 3.5.39
+
+  '@vue/devtools-api@6.6.4': {}
 
   '@vue/devtools-api@8.1.5':
     dependencies:
@@ -2115,11 +2263,17 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
+  balanced-match@4.0.4: {}
+
   birpc@2.9.0: {}
 
   brace-expansion@2.1.1:
     dependencies:
       balanced-match: 1.0.2
+
+  brace-expansion@5.0.12:
+    dependencies:
+      balanced-match: 4.0.4
 
   cac@6.7.14: {}
 
@@ -2325,6 +2479,8 @@ snapshots:
 
   gopd@1.2.0: {}
 
+  has-flag@4.0.0: {}
+
   has-symbols@1.1.0: {}
 
   has-tostringtag@1.0.2:
@@ -2340,6 +2496,8 @@ snapshots:
   html-encoding-sniffer@4.0.0:
     dependencies:
       whatwg-encoding: 3.1.1
+
+  html-escaper@2.0.2: {}
 
   http-proxy-agent@7.0.2:
     dependencies:
@@ -2373,6 +2531,27 @@ snapshots:
   is-potential-custom-element-name@1.0.1: {}
 
   isexe@2.0.0: {}
+
+  istanbul-lib-coverage@3.2.2: {}
+
+  istanbul-lib-report@3.0.1:
+    dependencies:
+      istanbul-lib-coverage: 3.2.2
+      make-dir: 4.0.0
+      supports-color: 7.2.0
+
+  istanbul-lib-source-maps@5.0.6:
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      debug: 4.4.3
+      istanbul-lib-coverage: 3.2.2
+    transitivePeerDependencies:
+      - supports-color
+
+  istanbul-reports@3.2.0:
+    dependencies:
+      html-escaper: 2.0.2
+      istanbul-lib-report: 3.0.1
 
   jackspeak@3.4.3:
     dependencies:
@@ -2492,6 +2671,16 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  magicast@0.3.5:
+    dependencies:
+      '@babel/parser': 7.29.7
+      '@babel/types': 7.29.7
+      source-map-js: 1.2.1
+
+  make-dir@4.0.0:
+    dependencies:
+      semver: 7.7.4
+
   math-intrinsics@1.1.0: {}
 
   mime-db@1.52.0: {}
@@ -2499,6 +2688,10 @@ snapshots:
   mime-types@2.1.35:
     dependencies:
       mime-db: 1.52.0
+
+  minimatch@10.2.6:
+    dependencies:
+      brace-expansion: 5.0.12
 
   minimatch@9.0.9:
     dependencies:
@@ -2690,7 +2883,17 @@ snapshots:
     dependencies:
       ansi-regex: 6.2.2
 
+  supports-color@7.2.0:
+    dependencies:
+      has-flag: 4.0.0
+
   symbol-tree@3.2.4: {}
+
+  test-exclude@7.0.2:
+    dependencies:
+      '@istanbuljs/schema': 0.1.6
+      glob: 10.5.0
+      minimatch: 10.2.6
 
   tinybench@2.9.0: {}
 
@@ -2825,6 +3028,14 @@ snapshots:
   vscode-uri@3.1.0: {}
 
   vue-component-type-helpers@3.3.6: {}
+
+  vue-i18n@11.4.12(vue@3.5.39(typescript@5.7.3)):
+    dependencies:
+      '@intlify/core-base': 11.4.12
+      '@intlify/devtools-types': 11.4.12
+      '@intlify/shared': 11.4.12
+      '@vue/devtools-api': 6.6.4
+      vue: 3.5.39(typescript@5.7.3)
 
   vue-router@5.1.0(@vue/compiler-sfc@3.5.39)(rolldown@1.1.4)(rollup@4.62.2)(vite@8.1.3(@types/node@24.10.4)(jiti@2.6.1)(yaml@2.9.0))(vue@3.5.39(typescript@5.7.3)):
     dependencies:

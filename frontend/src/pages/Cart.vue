@@ -3,26 +3,26 @@
     <div class="bs-container">
 
       <header class="orders-header">
-        <h1 class="orders-header__title">Your Cart</h1>
+        <h1 class="orders-header__title">{{ t('cart.title') }}</h1>
         <p class="orders-header__subtitle">{{ subtitle }}</p>
       </header>
 
-      <div v-if="loading" class="state-msg">Loading cart…</div>
+      <div v-if="loading" class="state-msg">{{ t('cart.loading') }}</div>
 
       <div v-else-if="!session.user" class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">🔒</div>
-        <p class="empty-state__title">Please log in</p>
-        <p class="empty-state__desc">Log in to view and manage your cart.</p>
-        <RouterLink :to="{ path: '/login', query: { next: '/cart' } }" class="btn btn-primary">Log in</RouterLink>
+        <p class="empty-state__title">{{ t('cart.loginTitle') }}</p>
+        <p class="empty-state__desc">{{ t('cart.loginDesc') }}</p>
+        <RouterLink :to="{ path: '/login', query: { next: '/cart' } }" class="btn btn-primary">{{ t('common.logIn') }}</RouterLink>
       </div>
 
-      <div v-else-if="!cart" class="alert alert-error">{{ error ?? 'Failed to load cart.' }}</div>
+      <div v-else-if="!cart" class="alert alert-error">{{ error ?? t('cart.loadError') }}</div>
 
       <div v-else-if="cart.items.length === 0" class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">🛒</div>
-        <p class="empty-state__title">Your cart is empty</p>
-        <p class="empty-state__desc">Browse the catalog and add some books.</p>
-        <RouterLink to="/" class="btn btn-primary">Browse the catalog</RouterLink>
+        <p class="empty-state__title">{{ t('cart.emptyTitle') }}</p>
+        <p class="empty-state__desc">{{ t('cart.emptyDesc') }}</p>
+        <RouterLink to="/" class="btn btn-primary">{{ t('common.browse') }}</RouterLink>
       </div>
 
       <div v-else class="cart-layout">
@@ -35,11 +35,11 @@
             </RouterLink>
             <div class="cart-item__info">
               <RouterLink :to="`/book/${item.book.id}`" class="cart-item__title">{{ item.book.title }}</RouterLink>
-              <p class="cart-item__author">by {{ item.book.author }}</p>
+              <p class="cart-item__author">{{ t('common.by', { author: item.book.author }) }}</p>
               <p class="cart-item__price">
-                {{ formatPrice(item.book.price) }} each
+                {{ t('cart.each', { price: formatPrice(item.book.price) }) }}
                 <span v-if="item.quantity > item.book.stock" class="cart-item__warning">
-                  · only {{ item.book.stock }} left
+                  · {{ t('cart.onlyLeft', { n: item.book.stock }) }}
                 </span>
               </p>
             </div>
@@ -49,15 +49,15 @@
                   class="qty-btn"
                   type="button"
                   :disabled="item.quantity <= 1 || busy"
-                  :aria-label="`Decrease quantity of ${item.book.title}`"
+                  :aria-label="t('cart.decreaseOf', { title: item.book.title })"
                   @click="changeQuantity(item, item.quantity - 1)"
                 >−</button>
-                <input class="qty-input" type="number" :value="item.quantity" readonly :aria-label="`Quantity of ${item.book.title}`" />
+                <input class="qty-input" type="number" :value="item.quantity" readonly :aria-label="t('cart.quantityOf', { title: item.book.title })" />
                 <button
                   class="qty-btn"
                   type="button"
                   :disabled="busy || item.quantity >= item.book.stock"
-                  :aria-label="`Increase quantity of ${item.book.title}`"
+                  :aria-label="t('cart.increaseOf', { title: item.book.title })"
                   @click="changeQuantity(item, item.quantity + 1)"
                 >+</button>
               </div>
@@ -66,7 +66,7 @@
                 class="cart-item__remove"
                 type="button"
                 :disabled="busy"
-                :aria-label="`Remove ${item.book.title}`"
+                :aria-label="t('cart.remove', { title: item.book.title })"
                 @click="remove(item)"
               >✕</button>
             </div>
@@ -74,23 +74,23 @@
         </div>
 
         <aside class="cart-summary">
-          <h2 class="cart-summary__title">Order Summary</h2>
+          <h2 class="cart-summary__title">{{ t('cart.summary') }}</h2>
           <div class="cart-summary__row">
-            <span>Items</span>
+            <span>{{ t('cart.items') }}</span>
             <span>{{ cart.total_quantity }}</span>
           </div>
           <div class="cart-summary__row">
-            <span>Shipping</span>
-            <span>Free</span>
+            <span>{{ t('cart.shipping') }}</span>
+            <span>{{ t('cart.free') }}</span>
           </div>
           <div class="cart-summary__total">
-            <span>Total</span>
+            <span>{{ t('cart.total') }}</span>
             <span>{{ formatPrice(cart.total_price) }}</span>
           </div>
           <button class="btn btn-primary btn-lg" type="button" :disabled="busy" @click="checkoutHandler">
-            {{ busy ? 'Processing…' : 'Checkout' }}
+            {{ busy ? t('cart.processing') : t('cart.checkout') }}
           </button>
-          <p class="cart-summary__note">Demo store — no payment is taken.</p>
+          <p class="cart-summary__note">{{ t('cart.note') }}</p>
         </aside>
       </div>
 
@@ -100,6 +100,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import {
@@ -112,8 +113,9 @@ import {
   type CartItem,
 } from '../services/api'
 import { session, setCartCount } from '../stores/session'
-import { formatPrice, plural } from '../utils/format'
+import { formatPrice } from '../utils/format'
 
+const { t } = useI18n()
 const router = useRouter()
 const cart = ref<Cart | null>(null)
 const loading = ref(true)
@@ -123,7 +125,7 @@ const error = ref<string | null>(null)
 const subtitle = computed(() => {
   if (loading.value || !session.user || !cart.value) return ''
   const n = cart.value.total_quantity
-  return n > 0 ? `${plural(n, 'item')} in your cart` : 'Your cart is empty.'
+  return n > 0 ? t('cart.subtitle', { n }, n) : t('cart.empty')
 })
 
 const applyCart = (data: Cart) => {
@@ -137,7 +139,7 @@ const fetchCart = async () => {
   try {
     if (session.user) applyCart((await getCart()).data)
   } catch (err) {
-    error.value = extractApiError(err, 'Failed to load cart.')
+    error.value = extractApiError(err, t('cart.loadError'))
   } finally {
     loading.value = false
   }
@@ -158,11 +160,11 @@ const mutate = async (action: () => Promise<{ data: Cart }>, fallback: string) =
 
 const changeQuantity = (item: CartItem, quantity: number) => {
   if (quantity < 1) return
-  return mutate(() => updateCartItem(item.id, quantity), 'Failed to update quantity.')
+  return mutate(() => updateCartItem(item.id, quantity), t('cart.updateError'))
 }
 
 const remove = (item: CartItem) =>
-  mutate(() => removeCartItem(item.id), 'Failed to remove item.')
+  mutate(() => removeCartItem(item.id), t('cart.removeError'))
 
 const checkoutHandler = async () => {
   busy.value = true
@@ -172,7 +174,7 @@ const checkoutHandler = async () => {
     setCartCount(0)
     router.push({ path: '/orders', query: { placed: String(order.id) } })
   } catch (err) {
-    error.value = extractApiError(err, 'Checkout failed. Please try again.')
+    error.value = extractApiError(err, t('cart.checkoutError'))
     // Stock may have changed under us — show the up-to-date cart.
     getCart().then(({ data }) => applyCart(data)).catch(() => {})
   } finally {

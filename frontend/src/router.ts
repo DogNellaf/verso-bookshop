@@ -1,10 +1,12 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { initSession, session } from './stores/session'
+import { i18n } from './i18n'
 import { safeRedirect, setPageTitle } from './utils/navigation'
 
 declare module 'vue-router' {
   interface RouteMeta {
-    title?: string
+    /** i18n key of the page title (pages with dynamic titles set their own). */
+    titleKey?: string
     /** Redirect anonymous visitors to /login?next=… */
     requiresAuth?: boolean
     /** Login / register: bounce already-authenticated users home. */
@@ -13,13 +15,13 @@ declare module 'vue-router' {
 }
 
 export const routes: RouteRecordRaw[] = [
-  { path: '/', component: () => import('./pages/Home.vue'), meta: { title: 'Catalog' } },
+  { path: '/', component: () => import('./pages/Home.vue'), meta: { titleKey: 'titles.catalog' } },
   { path: '/book/:id(\\d+)', component: () => import('./pages/BookDetail.vue') },
-  { path: '/login', component: () => import('./pages/Login.vue'), meta: { title: 'Sign in', guestOnly: true } },
-  { path: '/register', component: () => import('./pages/Register.vue'), meta: { title: 'Create account', guestOnly: true } },
-  { path: '/cart', component: () => import('./pages/Cart.vue'), meta: { title: 'Cart', requiresAuth: true } },
-  { path: '/orders', component: () => import('./pages/Orders.vue'), meta: { title: 'My orders', requiresAuth: true } },
-  { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue'), meta: { title: 'Page not found' } },
+  { path: '/login', component: () => import('./pages/Login.vue'), meta: { titleKey: 'titles.login', guestOnly: true } },
+  { path: '/register', component: () => import('./pages/Register.vue'), meta: { titleKey: 'titles.register', guestOnly: true } },
+  { path: '/cart', component: () => import('./pages/Cart.vue'), meta: { titleKey: 'titles.cart', requiresAuth: true } },
+  { path: '/orders', component: () => import('./pages/Orders.vue'), meta: { titleKey: 'titles.orders', requiresAuth: true } },
+  { path: '/:pathMatch(.*)*', component: () => import('./pages/NotFound.vue'), meta: { titleKey: 'titles.notFound' } },
 ]
 
 export function createAppRouter() {
@@ -47,7 +49,7 @@ export function createAppRouter() {
   })
 
   router.afterEach((to) => {
-    if (to.meta.title) setPageTitle(to.meta.title)
+    if (to.meta.titleKey) setPageTitle(i18n.global.t(to.meta.titleKey))
   })
 
   return router

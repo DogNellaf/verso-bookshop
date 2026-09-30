@@ -38,6 +38,9 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Picks the language from the SPA's Accept-Language header (the UI sends
+    # the user's chosen language, not the browser default).
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -93,7 +96,14 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "en"
+LANGUAGES = [
+    ("en", "English"),
+    ("ru", "Русский"),
+    ("fr", "Français"),
+    ("de", "Deutsch"),
+]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True

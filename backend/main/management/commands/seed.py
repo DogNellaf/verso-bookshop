@@ -4,9 +4,12 @@ Usage:
     python manage.py seed          # add demo data (idempotent)
     python manage.py seed --flush  # wipe books & orders first, then reseed
 
-Book covers are downloaded from the Open Library covers API into MEDIA_ROOT.
-If a download fails (e.g. no internet), the book is still created without a
-cover and the frontend falls back to a generated placeholder.
+Covers are taken from ``main/fixtures/covers/<isbn>.jpg`` when bundled with
+the repository, otherwise downloaded from the Open Library covers API. If
+neither works (e.g. no internet), the book is still created without a cover
+and the frontend renders a generated one.
+
+    python manage.py seed --save-covers   # also store downloads in fixtures/
 """
 
 from __future__ import annotations
@@ -14,13 +17,17 @@ from __future__ import annotations
 import urllib.error
 import urllib.request
 from decimal import Decimal
+from pathlib import Path
 
 from django.contrib.auth.models import User
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from main.models import Book, Cart, CartItem, Order, OrderItem
+from main.management.commands._translations import TRANSLATIONS
+from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
+
+BUNDLED_COVERS = Path(__file__).resolve().parents[2] / "fixtures" / "covers"
 
 BOOKS = [
     {
@@ -271,7 +278,12 @@ class Command(BaseCommand):
         parser.add_argument(
             "--no-covers",
             action="store_true",
-            help="Skip downloading cover images.",
+            help="Skip downloading cover images (bundled covers are still used).",
+        )
+        parser.add_argument(
+            "--save-covers",
+            action="store_true",
+            help="Store downloaded covers in main/fixtures/covers/ for offline use.",
         )
 
     @transaction.atomic
@@ -311,22 +323,44 @@ class Command(BaseCommand):
 
             books_by_title[book.title] = book
 
-            if (
-                not options["no_covers"]
-                and not book.cover
-                and self._download_cover(book, data["isbn"])
-            ):
+            self._seed_translations(book)
+
+            if not book.cover and self._attach_cover(book, data["isbn"], options):
                 covers += 1
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Books: {created} created, {updated} updated, {covers} cover(s) downloaded."
+                f"Books: {created} created, {updated} updated, {covers} cover(s) added."
             )
         )
 
         self._seed_demo_user_and_orders(books_by_title)
 
-    def _download_cover(self, book: Book, isbn: str) -> bool:
+    def _seed_translations(self, book: Book) -> None:
+        for language, (title, author, description) in TRANSLATIONS.get(book.title, {}).items():
+            BookTranslation.objects.update_or_create(
+                book=book,
+                language=language,
+                defaults={"title": title, "author": author, "description": description},
+            )
+
+    def _attach_cover(self, book: Book, isbn: str, options) -> bool:
+        bundled = BUNDLED_COVERS / f"{isbn}.jpg"
+        if bundled.exists():
+            book.cover.save(bundled.name, ContentFile(bundled.read_bytes()), save=True)
+            return True
+        if options["no_covers"]:
+            return False
+        content = self._download_cover(book, isbn)
+        if content is None:
+            return False
+        if options["save_covers"]:
+            BUNDLED_COVERS.mkdir(parents=True, exist_ok=True)
+            bundled.write_bytes(content)
+        book.cover.save(bundled.name, ContentFile(content), save=True)
+        return True
+
+    def _download_cover(self, book: Book, isbn: str) -> bytes | None:
         url = COVER_URL.format(isbn=isbn)
         try:
             request = urllib.request.Request(url, headers={"User-Agent": "bookshop-seed/1.0"})
@@ -334,16 +368,14 @@ class Command(BaseCommand):
                 content = response.read()
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             self.stdout.write(self.style.WARNING(f"  ! cover for '{book.title}' failed: {exc}"))
-            return False
+            return None
 
         # Open Library returns a tiny blank image when a cover is missing;
         # skip anything suspiciously small.
         if len(content) < 1000:
             self.stdout.write(self.style.WARNING(f"  ! no cover available for '{book.title}'"))
-            return False
-
-        book.cover.save(f"{isbn}.jpg", ContentFile(content), save=True)
-        return True
+            return None
+        return content
 
     def _seed_demo_user_and_orders(self, books_by_title: dict[str, Book]) -> None:
         user, created = User.objects.get_or_create(

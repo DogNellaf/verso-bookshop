@@ -3,10 +3,8 @@
     <div class="bs-container">
 
       <section class="section-hero">
-        <h1 class="section-hero__title">Discover Your Next Favourite Book</h1>
-        <p class="section-hero__subtitle">
-          Timeless classics, hand-picked — browse the catalog and fill your cart.
-        </p>
+        <h1 class="section-hero__title">{{ t('catalog.heroTitle') }}</h1>
+        <p class="section-hero__subtitle">{{ t('catalog.heroSubtitle') }}</p>
       </section>
 
       <form class="catalog-search" role="search" @submit.prevent="runSearch">
@@ -14,34 +12,34 @@
           v-model="searchTerm"
           class="form-input"
           type="search"
-          placeholder="Search by title or author…"
-          aria-label="Search books"
+          :placeholder="t('catalog.searchPlaceholder')"
+          :aria-label="t('catalog.searchLabel')"
         />
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary">{{ t('catalog.search') }}</button>
       </form>
 
       <div class="catalog-toolbar">
         <p class="catalog-toolbar__count" aria-live="polite">
           <template v-if="!loading && !error">
-            {{ plural(count, 'book') }}<template v-if="query.search"> for “{{ query.search }}”</template>
-            <button v-if="query.search" type="button" class="link-btn" @click="clearSearch">Clear</button>
+            {{ t('catalog.count', { n: count }, count) }}<template v-if="query.search"> {{ t('catalog.forQuery', { query: query.search }) }}</template>
+            <button v-if="query.search" type="button" class="link-btn" @click="clearSearch">{{ t('catalog.clear') }}</button>
           </template>
         </p>
         <div class="catalog-toolbar__controls">
           <label class="toggle">
             <input type="checkbox" :checked="query.inStock" @change="setInStock(($event.target as HTMLInputElement).checked)" />
-            <span>In stock only</span>
+            <span>{{ t('catalog.inStockOnly') }}</span>
           </label>
-          <label class="sr-only" for="sort">Sort by</label>
+          <label class="sr-only" for="sort">{{ t('catalog.sortBy') }}</label>
           <select id="sort" class="form-select" :value="query.ordering" @change="setOrdering(($event.target as HTMLSelectElement).value)">
-            <option v-for="option in sortOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
+            <option v-for="option in sortOptions" :key="option" :value="option">
+              {{ t(`catalog.sort.${option}`) }}
             </option>
           </select>
         </div>
       </div>
 
-      <div v-if="loading" class="book-grid" aria-busy="true" aria-label="Loading books">
+      <div v-if="loading" class="book-grid" aria-busy="true" :aria-label="t('catalog.loading')">
         <div v-for="n in 8" :key="n" class="card book-card skeleton-card">
           <div class="skeleton skeleton--cover" />
           <div class="book-card__body">
@@ -53,17 +51,17 @@
 
       <div v-else-if="error" class="alert alert-error">
         {{ error }}
-        <button type="button" class="link-btn" @click="fetchBooks">Try again</button>
+        <button type="button" class="link-btn" @click="fetchBooks">{{ t('common.tryAgain') }}</button>
       </div>
 
       <div v-else-if="books.length === 0" class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">🔍</div>
-        <p class="empty-state__title">No books found</p>
-        <p class="empty-state__desc">Try a different search or remove the filters.</p>
-        <button type="button" class="btn btn-secondary" @click="resetFilters">Reset filters</button>
+        <p class="empty-state__title">{{ t('catalog.emptyTitle') }}</p>
+        <p class="empty-state__desc">{{ t('catalog.emptyDesc') }}</p>
+        <button type="button" class="btn btn-secondary" @click="resetFilters">{{ t('catalog.reset') }}</button>
       </div>
 
-      <section v-else aria-label="Books">
+      <section v-else :aria-label="t('catalog.books')">
         <div class="book-grid">
           <RouterLink
             v-for="book in books"
@@ -84,13 +82,13 @@
           </RouterLink>
         </div>
 
-        <nav v-if="totalPages > 1" class="pagination" aria-label="Catalog pagination">
+        <nav v-if="totalPages > 1" class="pagination" :aria-label="t('catalog.pagination')">
           <button class="btn btn-secondary" :disabled="query.page <= 1" @click="goToPage(query.page - 1)">
-            ← Previous
+            {{ t('catalog.previous') }}
           </button>
-          <span class="pagination__info">Page {{ query.page }} of {{ totalPages }}</span>
+          <span class="pagination__info">{{ t('catalog.page', { page: query.page, total: totalPages }) }}</span>
           <button class="btn btn-primary" :disabled="query.page >= totalPages" @click="goToPage(query.page + 1)">
-            Next →
+            {{ t('catalog.next') }}
           </button>
         </nav>
       </section>
@@ -101,21 +99,17 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute, useRouter, type LocationQueryRaw } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import StockBadge from '../components/StockBadge.vue'
 import { getBooks, type Book, type BookOrdering } from '../services/api'
-import { formatPrice, plural } from '../utils/format'
+import { formatPrice } from '../utils/format'
 
-const sortOptions: { value: BookOrdering; label: string }[] = [
-  { value: 'title', label: 'Title A–Z' },
-  { value: '-title', label: 'Title Z–A' },
-  { value: 'author', label: 'Author' },
-  { value: 'price', label: 'Price: low to high' },
-  { value: '-price', label: 'Price: high to low' },
-]
+const sortOptions: BookOrdering[] = ['title', '-title', 'author', 'price', '-price']
 const DEFAULT_ORDERING: BookOrdering = 'title'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
@@ -124,7 +118,7 @@ const router = useRouter()
 const query = computed(() => {
   const q = route.query
   const page = Number(q.page)
-  const ordering = sortOptions.find((o) => o.value === q.sort)?.value ?? DEFAULT_ORDERING
+  const ordering = sortOptions.find((o) => o === q.sort) ?? DEFAULT_ORDERING
   return {
     page: Number.isInteger(page) && page > 0 ? page : 1,
     search: typeof q.q === 'string' ? q.q : '',
@@ -181,7 +175,7 @@ const fetchBooks = async () => {
       updateQuery({ page: 1 })
       return
     }
-    error.value = 'Failed to load books. Please try again.'
+    error.value = t('catalog.loadError')
     console.error('[verso] Error fetching books:', err)
   } finally {
     loading.value = false

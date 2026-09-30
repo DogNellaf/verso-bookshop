@@ -2,7 +2,7 @@
   <main class="bs-main">
     <div class="bs-container">
 
-      <RouterLink to="/" class="back-link" @click.prevent="goBack">← Back to catalog</RouterLink>
+      <RouterLink to="/" class="back-link" @click.prevent="goBack">{{ t('book.back') }}</RouterLink>
 
       <div v-if="loading" class="book-detail" aria-busy="true">
         <div class="skeleton skeleton--cover book-detail__cover" />
@@ -16,9 +16,9 @@
 
       <div v-else-if="notFound" class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">📕</div>
-        <p class="empty-state__title">Book not found</p>
-        <p class="empty-state__desc">It may have been removed from the catalog.</p>
-        <RouterLink to="/" class="btn btn-primary">Browse the catalog</RouterLink>
+        <p class="empty-state__title">{{ t('titles.bookNotFound') }}</p>
+        <p class="empty-state__desc">{{ t('book.notFoundDesc') }}</p>
+        <RouterLink to="/" class="btn btn-primary">{{ t('common.browse') }}</RouterLink>
       </div>
 
       <div v-else-if="error && !book" class="alert alert-error">{{ error }}</div>
@@ -28,7 +28,7 @@
 
         <div>
           <h1 class="book-detail__title">{{ book.title }}</h1>
-          <p class="book-detail__author">by {{ book.author }}</p>
+          <p class="book-detail__author">{{ t('common.by', { author: book.author }) }}</p>
 
           <p class="book-detail__price">{{ formatPrice(book.price) }}</p>
 
@@ -39,37 +39,37 @@
           <p class="book-detail__desc">{{ book.description }}</p>
 
           <div v-if="addedMessage" class="alert alert-success" role="status">
-            {{ addedMessage }} <RouterLink to="/cart">View cart →</RouterLink>
+            {{ addedMessage }} <RouterLink to="/cart">{{ t('book.viewCart') }}</RouterLink>
           </div>
           <div v-if="error && book" class="alert alert-error" role="alert">{{ error }}</div>
 
           <template v-if="session.user">
             <template v-if="book.in_stock">
               <div class="quantity-stepper">
-                <span class="quantity-stepper__label">Quantity</span>
-                <button class="qty-btn" type="button" :disabled="quantity <= 1" aria-label="Decrease quantity" @click="quantity--">−</button>
+                <span class="quantity-stepper__label">{{ t('common.quantity') }}</span>
+                <button class="qty-btn" type="button" :disabled="quantity <= 1" :aria-label="t('common.decrease')" @click="quantity--">−</button>
                 <input
                   class="qty-input"
                   type="number"
                   min="1"
                   :max="book.stock"
                   :value="quantity"
-                  aria-label="Quantity"
+                  :aria-label="t('common.quantity')"
                   @change="setQuantity(($event.target as HTMLInputElement).valueAsNumber)"
                 />
-                <button class="qty-btn" type="button" :disabled="quantity >= book.stock" aria-label="Increase quantity" @click="quantity++">+</button>
+                <button class="qty-btn" type="button" :disabled="quantity >= book.stock" :aria-label="t('common.increase')" @click="quantity++">+</button>
               </div>
 
               <button class="btn btn-primary btn-lg" :disabled="adding" @click="addToCartHandler">
-                {{ adding ? 'Adding…' : 'Add to Cart' }}
+                {{ adding ? t('book.adding') : t('book.addToCart') }}
               </button>
             </template>
-            <button v-else class="btn btn-primary btn-lg book-detail__cta" disabled>Add to Cart</button>
+            <button v-else class="btn btn-primary btn-lg book-detail__cta" disabled>{{ t('book.addToCart') }}</button>
           </template>
 
           <div v-else class="login-prompt">
-            <p>Please log in to add books to your cart</p>
-            <RouterLink :to="{ path: '/login', query: { next: route.fullPath } }" class="btn btn-primary">Log in</RouterLink>
+            <p>{{ t('book.loginPrompt') }}</p>
+            <RouterLink :to="{ path: '/login', query: { next: route.fullPath } }" class="btn btn-primary">{{ t('common.logIn') }}</RouterLink>
           </div>
         </div>
       </article>
@@ -80,6 +80,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
 import StockBadge from '../components/StockBadge.vue'
@@ -88,6 +89,7 @@ import { addToCart, extractApiError, getBook, type Book } from '../services/api'
 import { session, setCartCount } from '../stores/session'
 import { formatPrice } from '../utils/format'
 
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const book = ref<Book | null>(null)
@@ -118,10 +120,10 @@ const addToCartHandler = async () => {
   try {
     const { data } = await addToCart(book.value.id, quantity.value)
     setCartCount(data.total_quantity)
-    addedMessage.value = `Added ${quantity.value} × “${book.value.title}” to your cart.`
+    addedMessage.value = t('book.added', { n: quantity.value, title: book.value.title })
     quantity.value = 1
   } catch (err) {
-    error.value = extractApiError(err, 'Failed to add to cart. Please try again.')
+    error.value = extractApiError(err, t('book.addError'))
     console.error('[verso] Add to cart error:', err)
   } finally {
     adding.value = false
@@ -141,15 +143,19 @@ const fetchBook = async (id: number) => {
     book.value = null
     if ((err as any)?.response?.status === 404) {
       notFound.value = true
-      setPageTitle('Book not found')
+      setPageTitle(t('titles.bookNotFound'))
     } else {
-      error.value = 'Failed to load book details. Please try again.'
+      error.value = t('book.loadError')
       console.error('[verso] Error fetching book:', err)
     }
   } finally {
     loading.value = false
   }
 }
+
+watch(locale, () => {
+  if (notFound.value) setPageTitle(t('titles.bookNotFound'))
+})
 
 watch(
   () => route.params.id,

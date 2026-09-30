@@ -1,4 +1,6 @@
+import tempfile
 from decimal import Decimal
+from io import StringIO
 
 from django.contrib.auth.models import User
 from django.core.cache import cache
@@ -7,7 +9,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase as BaseAPITestCase
 
-from main.models import Book, Cart, CartItem, Order, OrderItem
+from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -438,8 +440,9 @@ class CartQueryCountTest(AuthedAPITestCase):
         cart = Cart.objects.create(buyer=self.user)
         for i in range(5):
             CartItem.objects.create(cart=cart, book=make_book(title=f"B{i}"), quantity=1)
-        # user, cart, items+books in one JOIN — independent of the item count.
-        with self.assertNumQueries(3):
+        # user, cart, items+books in one JOIN, book translations — independent
+        # of the item count.
+        with self.assertNumQueries(4):
             response = self.client.get(reverse("api_cart"))
         self.assertEqual(len(response.data["items"]), 5)
 
@@ -480,3 +483,169 @@ class ThrottleTest(APITestCase):
         finally:
             api_settings.reload()
             ScopedRateThrottle.THROTTLE_RATES = api_settings.DEFAULT_THROTTLE_RATES
+
+
+# ---------------------------------------------------------------------------
+# API tests — localization
+# ---------------------------------------------------------------------------
+
+
+class LocalizationApiTest(AuthedAPITestCase):
+    def checkout_error(self, language=None):
+        headers = {"HTTP_ACCEPT_LANGUAGE": language} if language else {}
+        return self.client.post(reverse("api_checkout"), **headers).data["detail"]
+
+    def test_english_by_default(self):
+        self.assertEqual(self.checkout_error(), "Your cart is empty.")
+
+    def test_messages_follow_the_requested_language(self):
+        self.assertEqual(self.checkout_error("ru"), "Ваша корзина пуста.")
+        self.assertEqual(self.checkout_error("fr"), "Votre panier est vide.")
+        self.assertEqual(self.checkout_error("de"), "Ihr Warenkorb ist leer.")
+
+    def test_unsupported_language_falls_back_to_english(self):
+        self.assertEqual(self.checkout_error("ja"), "Your cart is empty.")
+
+    def test_stock_message_uses_plural_forms(self):
+        book = make_book(title="Dune", stock=2)
+        response = self.client.post(
+            reverse("api_cart_items"),
+            {"book": book.pk, "quantity": 5},
+            HTTP_ACCEPT_LANGUAGE="ru",
+        )
+        self.assertEqual(str(response.data["quantity"]), "Осталось только 2 экземпляра «Dune».")
+
+        book.stock = 5
+        book.save()
+        response = self.client.post(
+            reverse("api_cart_items"),
+            {"book": book.pk, "quantity": 9},
+            HTTP_ACCEPT_LANGUAGE="ru",
+        )
+        self.assertEqual(str(response.data["quantity"]), "Осталось только 5 экземпляров «Dune».")
+
+    def test_out_of_stock_message(self):
+        book = make_book(title="Dune", stock=0)
+        response = self.client.post(
+            reverse("api_cart_items"), {"book": book.pk}, HTTP_ACCEPT_LANGUAGE="de"
+        )
+        self.assertEqual(str(response.data["quantity"]), "„Dune“ ist nicht vorrätig.")
+
+
+class CatalogTranslationApiTest(AuthedAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.crime = make_book(title="Crime and Punishment", author="Fyodor Dostoevsky")
+        BookTranslation.objects.create(
+            book=self.crime,
+            language="ru",
+            title="Преступление и наказание",
+            author="Фёдор Достоевский",
+            description="Роман о студенте Раскольникове.",
+        )
+        self.animal = make_book(title="Animal Farm", author="George Orwell")
+        BookTranslation.objects.create(
+            book=self.animal,
+            language="ru",
+            title="Скотный двор",
+            author="Джордж Оруэлл",
+            description="Сказка о революции.",
+        )
+
+    def get(self, url, language, **params):
+        return self.client.get(url, params, HTTP_ACCEPT_LANGUAGE=language).data
+
+    def test_book_is_returned_in_the_requested_language(self):
+        data = self.get(reverse("book-detail", args=[self.crime.pk]), "ru")
+        self.assertEqual(data["title"], "Преступление и наказание")
+        self.assertEqual(data["author"], "Фёдор Достоевский")
+        self.assertEqual(data["description"], "Роман о студенте Раскольникове.")
+
+    def test_missing_translation_falls_back_to_english(self):
+        data = self.get(reverse("book-detail", args=[self.crime.pk]), "de")
+        self.assertEqual(data["title"], "Crime and Punishment")
+
+    def test_search_matches_translated_titles(self):
+        data = self.get(reverse("book-list"), "en", search="наказание")
+        self.assertEqual([b["title"] for b in data["results"]], ["Crime and Punishment"])
+
+    def test_ordering_uses_translated_titles(self):
+        english = self.get(reverse("book-list"), "en")
+        russian = self.get(reverse("book-list"), "ru")
+        self.assertEqual(
+            [b["title"] for b in english["results"]], ["Animal Farm", "Crime and Punishment"]
+        )
+        self.assertEqual(
+            [b["title"] for b in russian["results"]], ["Преступление и наказание", "Скотный двор"]
+        )
+
+    def test_cart_and_orders_show_translated_books(self):
+        self.client.post(reverse("api_cart_items"), {"book": self.crime.pk})
+        cart = self.get(reverse("api_cart"), "ru")
+        self.assertEqual(cart["items"][0]["book"]["title"], "Преступление и наказание")
+
+        self.client.post(reverse("api_checkout"))
+        orders = self.get(reverse("api_orders"), "ru")
+        self.assertEqual(orders[0]["items"][0]["book"]["title"], "Преступление и наказание")
+        # The order line keeps its purchase-time snapshot.
+        self.assertEqual(orders[0]["items"][0]["title"], "Crime and Punishment")
+
+
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix="verso-media-"))
+class SeedCommandTest(TestCase):
+    def test_seed_is_idempotent_and_translates_the_catalog(self):
+        from django.core.management import call_command
+
+        call_command("seed", "--no-covers", stdout=StringIO())
+        call_command("seed", "--no-covers", stdout=StringIO())
+
+        self.assertEqual(Book.objects.count(), 18)
+        self.assertEqual(BookTranslation.objects.count(), 18 * 3)
+        self.assertEqual(Order.objects.filter(buyer__username="demo").count(), 3)
+        crime = BookTranslation.objects.get(book__title="Crime and Punishment", language="ru")
+        self.assertEqual(crime.title, "Преступление и наказание")
+
+    def test_bundled_covers_are_used_offline(self):
+        from pathlib import Path
+        from unittest import mock
+
+        from django.core.management import call_command
+
+        covers = Path(tempfile.mkdtemp(prefix="verso-covers-"))
+        (covers / "9780451524935.jpg").write_bytes(b"\xff\xd8" + b"0" * 2000)  # 1984
+        with mock.patch("main.management.commands.seed.BUNDLED_COVERS", covers):
+            call_command("seed", "--no-covers", stdout=StringIO())
+
+        self.assertTrue(Book.objects.get(title="1984").cover.name.endswith(".jpg"))
+        self.assertFalse(Book.objects.get(title="Dracula").cover)
+
+    def test_downloaded_covers_can_be_saved_for_offline_use(self):
+        from pathlib import Path
+        from unittest import mock
+
+        from django.core.management import call_command
+
+        covers = Path(tempfile.mkdtemp(prefix="verso-covers-")) / "covers"
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = b"\xff\xd8" + b"0" * 2000
+        with (
+            mock.patch("main.management.commands.seed.BUNDLED_COVERS", covers),
+            mock.patch("urllib.request.urlopen", return_value=response),
+        ):
+            call_command("seed", "--save-covers", stdout=StringIO())
+
+        self.assertEqual(len(list(covers.glob("*.jpg"))), 18)
+        self.assertEqual(Book.objects.exclude(cover="").count(), 18)
+
+    def test_flush_and_failed_downloads(self):
+        from unittest import mock
+        from urllib.error import URLError
+
+        from django.core.management import call_command
+
+        make_book(title="Leftover")
+        with mock.patch("urllib.request.urlopen", side_effect=URLError("offline")):
+            call_command("seed", "--flush", stdout=StringIO())
+
+        self.assertFalse(Book.objects.filter(title="Leftover").exists())
+        self.assertEqual(Book.objects.exclude(cover="").count(), 0)

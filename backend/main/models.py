@@ -1,5 +1,6 @@
 import decimal
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -29,6 +30,40 @@ class Book(models.Model):
     @property
     def in_stock(self):
         return self.stock > 0
+
+
+class BookTranslation(models.Model):
+    """Title, author and description of a book in one of the UI languages.
+
+    The fields on ``Book`` are the English originals; the API falls back to
+    them when a translation is missing.
+    """
+
+    book = models.ForeignKey(
+        Book,
+        on_delete=models.CASCADE,
+        related_name="translations",
+        verbose_name="Book",
+    )
+    language = models.CharField(
+        max_length=8,
+        choices=[(code, name) for code, name in settings.LANGUAGES if code != "en"],
+        verbose_name="Language",
+    )
+    title = models.CharField(max_length=255, verbose_name="Title")
+    author = models.CharField(max_length=255, verbose_name="Author")
+    description = models.TextField(verbose_name="Description")
+
+    class Meta:
+        verbose_name = "Book translation"
+        verbose_name_plural = "Book translations"
+        ordering = ["language"]
+        constraints = [
+            models.UniqueConstraint(fields=["book", "language"], name="unique_book_language"),
+        ]
+
+    def __str__(self):
+        return f"{self.book.title} [{self.language}]"
 
 
 class Cart(models.Model):

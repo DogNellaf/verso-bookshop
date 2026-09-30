@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { currentLocale } from '../i18n'
 
 // Relative base URL so requests go through the Vite dev proxy (or nginx in
 // production) to the backend on the same origin. Override for other setups.
@@ -45,8 +46,10 @@ const refreshAccessToken = () => {
   return refreshing
 }
 
-// Attach the bearer token to every request.
+// Attach the bearer token and the UI language (so API errors come back
+// translated) to every request.
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  config.headers['Accept-Language'] = currentLocale()
   const token = getAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config

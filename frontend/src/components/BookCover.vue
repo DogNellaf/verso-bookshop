@@ -3,7 +3,7 @@
     v-if="src && !failed"
     :class="['book-cover', sizeClass]"
     :src="src"
-    :alt="`${title} cover`"
+    :alt="t('common.cover', { title })"
     loading="lazy"
     @error="failed = true"
   />
@@ -12,7 +12,7 @@
     :class="['book-cover', 'book-cover--generated', sizeClass]"
     :style="{ '--cover-hue': hue }"
     role="img"
-    :aria-label="`${title} cover`"
+    :aria-label="t('common.cover', { title })"
   >
     <template v-if="size !== 'xs'">
       <span class="book-cover__title">{{ title }}</span>
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 // Renders the book's cover image, or — when there is none or it fails to
 // load — a generated typographic cover with a colour derived from the title.
@@ -37,6 +38,7 @@ const props = withDefaults(
   { src: '', author: '', size: 'md' },
 )
 
+const { t } = useI18n()
 const failed = ref(false)
 watch(() => props.src, () => { failed.value = false })
 

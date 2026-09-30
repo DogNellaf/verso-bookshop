@@ -3,23 +3,23 @@
     <div class="bs-container">
 
       <header class="orders-header">
-        <h1 class="orders-header__title">My Orders</h1>
+        <h1 class="orders-header__title">{{ t('orders.title') }}</h1>
         <p class="orders-header__subtitle">{{ subtitle }}</p>
       </header>
 
       <div v-if="placedId && !loading" class="alert alert-success" role="status">
-        🎉 Thank you! Order #{{ placedId }} has been placed.
+        {{ t('orders.placed', { id: placedId }) }}
       </div>
 
-      <div v-if="loading" class="state-msg">Loading orders…</div>
+      <div v-if="loading" class="state-msg">{{ t('orders.loading') }}</div>
 
       <div v-else-if="error && orders.length === 0" class="alert alert-error">{{ error }}</div>
 
       <div v-else-if="orders.length === 0" class="empty-state">
         <div class="empty-state__icon" aria-hidden="true">📭</div>
-        <p class="empty-state__title">No orders yet</p>
-        <p class="empty-state__desc">When you place an order, it will show up here.</p>
-        <RouterLink to="/" class="btn btn-primary">Browse the catalog</RouterLink>
+        <p class="empty-state__title">{{ t('orders.emptyTitle') }}</p>
+        <p class="empty-state__desc">{{ t('orders.emptyDesc') }}</p>
+        <RouterLink to="/" class="btn btn-primary">{{ t('common.browse') }}</RouterLink>
       </div>
 
       <div v-else>
@@ -32,19 +32,20 @@
         >
           <div class="order-card__header">
             <div>
-              <h2 class="order-card__id">Order #{{ order.id }}</h2>
-              <p class="order-card__date">{{ formatDate(order.created_at) }} · {{ plural(order.item_count, 'item') }}</p>
+              <h2 class="order-card__id">{{ t('orders.order', { id: order.id }) }}</h2>
+              <p class="order-card__date">{{ formatDate(order.created_at) }} · {{ t('common.items', { n: order.item_count }, order.item_count) }}</p>
             </div>
             <div class="order-card__meta">
-              <span :class="`badge badge-${order.status}`">{{ statusLabels[order.status] ?? order.status }}</span>
+              <span :class="`badge badge-${order.status}`">{{ t(`orders.status.${order.status}`) }}</span>
             </div>
           </div>
 
           <div class="order-card__lines">
             <div v-for="item in order.items" :key="item.id" class="order-line">
-              <BookCover class="order-line__cover" :src="item.book?.cover" :title="item.title" size="xs" />
+              <BookCover class="order-line__cover" :src="item.book?.cover" :title="item.book?.title ?? item.title" size="xs" />
               <div class="order-line__info">
-                <RouterLink v-if="item.book" :to="`/book/${item.book.id}`" class="order-line__title">{{ item.title }}</RouterLink>
+                <!-- The live (translated) title when the book still exists, else the purchase-time snapshot. -->
+                <RouterLink v-if="item.book" :to="`/book/${item.book.id}`" class="order-line__title">{{ item.book.title }}</RouterLink>
                 <p v-else class="order-line__title">{{ item.title }}</p>
                 <p class="order-line__qty">{{ formatPrice(item.unit_price) }} × {{ item.quantity }}</p>
               </div>
@@ -60,10 +61,10 @@
               :disabled="cancellingId !== null"
               @click="cancel(order)"
             >
-              {{ cancellingId === order.id ? 'Cancelling…' : 'Cancel order' }}
+              {{ cancellingId === order.id ? t('orders.cancelling') : t('orders.cancel') }}
             </button>
             <div class="order-card__total">
-              <span>Total</span>
+              <span>{{ t('orders.total') }}</span>
               {{ formatPrice(order.total) }}
             </div>
           </div>
@@ -76,19 +77,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 import BookCover from '../components/BookCover.vue'
-import { cancelOrder, extractApiError, getOrders, type Order, type OrderStatus } from '../services/api'
-import { formatDate, formatPrice, plural } from '../utils/format'
+import { cancelOrder, extractApiError, getOrders, type Order } from '../services/api'
+import { formatDate, formatPrice } from '../utils/format'
 
-const statusLabels: Record<OrderStatus, string> = {
-  pending: 'Pending',
-  paid: 'Paid',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
-}
-
+const { t } = useI18n()
 const route = useRoute()
 const orders = ref<Order[]>([])
 const loading = ref(true)
@@ -102,8 +97,8 @@ const placedId = computed(() => {
 
 const subtitle = computed(() => {
   if (loading.value || (error.value && orders.value.length === 0)) return ''
-  if (orders.value.length === 0) return "You haven't placed any orders yet."
-  return `${plural(orders.value.length, 'order')} placed`
+  const n = orders.value.length
+  return n === 0 ? t('orders.none') : t('orders.subtitle', { n }, n)
 })
 
 const fetchOrders = async () => {
@@ -112,7 +107,7 @@ const fetchOrders = async () => {
   try {
     orders.value = (await getOrders()).data
   } catch (err) {
-    error.value = 'Failed to load orders. Please try again.'
+    error.value = t('orders.loadError')
     console.error('[verso] Error fetching orders:', err)
   } finally {
     loading.value = false
@@ -120,14 +115,14 @@ const fetchOrders = async () => {
 }
 
 const cancel = async (order: Order) => {
-  if (!window.confirm(`Cancel order #${order.id}? The books will be returned to stock.`)) return
+  if (!window.confirm(t('orders.confirmCancel', { id: order.id }))) return
   cancellingId.value = order.id
   error.value = null
   try {
     const { data } = await cancelOrder(order.id)
     orders.value = orders.value.map((o) => (o.id === data.id ? data : o))
   } catch (err) {
-    error.value = extractApiError(err, 'Failed to cancel the order.')
+    error.value = extractApiError(err, t('orders.cancelError'))
   } finally {
     cancellingId.value = null
   }

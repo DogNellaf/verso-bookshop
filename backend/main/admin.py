@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from main.models import Book, Cart, CartItem, Order, OrderItem
+from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
 
 admin.site.site_header = "Verso administration"
 admin.site.site_title = "Verso admin"
@@ -25,6 +25,11 @@ class StockFilter(admin.SimpleListFilter):
         return queryset
 
 
+class BookTranslationInline(admin.StackedInline):
+    model = BookTranslation
+    extra = 0
+
+
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
     list_display = ("cover_thumb", "title", "author", "price", "stock")
@@ -33,6 +38,7 @@ class BookAdmin(admin.ModelAdmin):
     list_filter = (StockFilter, "author")
     list_editable = ("price", "stock")
     readonly_fields = ("cover_preview",)
+    inlines = (BookTranslationInline,)
 
     @admin.display(description="Cover")
     def cover_thumb(self, obj):

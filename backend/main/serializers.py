@@ -1,8 +1,26 @@
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from django.utils.translation import get_language
 from rest_framework import serializers
 
 from main.models import Book, Cart, CartItem, Order, OrderItem
+
+TRANSLATED_FIELDS = ("title", "author", "description")
+
+
+def current_language():
+    return (get_language() or "en").split("-")[0]
+
+
+def translation_for(book, language=None):
+    """The book's translation for the active language, or None for English.
+
+    Iterates ``book.translations.all()`` so callers should prefetch it.
+    """
+    language = language or current_language()
+    if language == "en":
+        return None
+    return next((t for t in book.translations.all() if t.language == language), None)
 
 
 class BookSerializer(serializers.ModelSerializer):
@@ -18,6 +36,14 @@ class BookSerializer(serializers.ModelSerializer):
 
     def get_cover(self, obj) -> str:
         return obj.cover.url if obj.cover else ""
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        translation = translation_for(instance)
+        if translation is not None:
+            for field in TRANSLATED_FIELDS:
+                data[field] = getattr(translation, field)
+        return data
 
 
 class UserSerializer(serializers.ModelSerializer):

@@ -1,36 +1,36 @@
 <template>
   <div class="auth-wrapper">
     <div class="auth-card">
-      <h1 class="auth-card__title">Welcome back</h1>
-      <p class="auth-card__subtitle">Sign in to your Verso account.</p>
+      <h1 class="auth-card__title">{{ t('auth.loginTitle') }}</h1>
+      <p class="auth-card__subtitle">{{ t('auth.loginSubtitle') }}</p>
 
       <div class="demo-hint">
         <div>
-          <p class="demo-hint__title">Just looking around?</p>
-          <p class="demo-hint__text">
-            Use the demo account <code>{{ DEMO.username }}</code> / <code>{{ DEMO.password }}</code>
-            — it already has orders and a filled cart.
-          </p>
+          <p class="demo-hint__title">{{ t('auth.demoTitle') }}</p>
+          <i18n-t keypath="auth.demoText" tag="p" class="demo-hint__text">
+            <template #username><code>{{ DEMO.username }}</code></template>
+            <template #password><code>{{ DEMO.password }}</code></template>
+          </i18n-t>
         </div>
-        <button type="button" class="btn btn-secondary btn-sm" @click="useDemo">Use demo account</button>
+        <button type="button" class="btn btn-secondary btn-sm" @click="useDemo">{{ t('auth.useDemo') }}</button>
       </div>
 
       <form @submit.prevent="handleLogin">
         <div class="form-group">
-          <label class="form-label" for="username">Username</label>
+          <label class="form-label" for="username">{{ t('auth.username') }}</label>
           <input
             id="username"
             v-model="form.username"
             class="form-input"
             type="text"
-            placeholder="your_username"
+            :placeholder="t('auth.usernamePlaceholder')"
             autocomplete="username"
             required
           />
         </div>
 
         <div class="form-group">
-          <label class="form-label" for="password">Password</label>
+          <label class="form-label" for="password">{{ t('auth.password') }}</label>
           <input
             id="password"
             v-model="form.password"
@@ -45,13 +45,13 @@
         <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
 
         <button type="submit" class="btn btn-primary btn-lg form-submit" :disabled="loading">
-          {{ loading ? 'Signing in…' : 'Sign in' }}
+          {{ loading ? t('auth.signingIn') : t('auth.signIn') }}
         </button>
       </form>
 
       <p class="auth-footer">
-        Don't have an account?
-        <RouterLink :to="{ path: '/register', query: route.query }">Create one</RouterLink>
+        {{ t('auth.noAccount') }}
+        <RouterLink :to="{ path: '/register', query: route.query }">{{ t('auth.createOne') }}</RouterLink>
       </p>
     </div>
   </div>
@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { safeRedirect } from '../utils/navigation'
 import { extractApiError } from '../services/api'
@@ -67,6 +68,7 @@ import { login } from '../stores/session'
 // Seeded by `python manage.py seed`.
 const DEMO = { username: 'demo', password: 'demopass123' }
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const form = ref({ username: '', password: '' })
@@ -80,7 +82,7 @@ const handleLogin = async () => {
     await login(form.value.username, form.value.password)
     router.push(safeRedirect(route.query.next))
   } catch (err) {
-    error.value = extractApiError(err, 'Login failed. Please check your credentials.')
+    error.value = extractApiError(err, t('auth.loginError'))
     console.error('[verso] Login error:', err)
   } finally {
     loading.value = false
