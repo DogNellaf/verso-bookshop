@@ -10,13 +10,16 @@
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Verso est une librairie en ligne écrite avec Django REST Framework et Vue 3.
-On peut chercher des livres, remplir un panier, passer commande et la payer
-par carte, ou l'annuler tant qu'elle est en attente. Les prix s'affichent en
-dollars, en euros ou en roubles. L'équipe gère les livres, les commandes, les
-paiements et les taux de change dans l'administration Django. L'interface est
-en anglais par défaut. Le russe, le français et l'allemand se choisissent dans
-l'en-tête, et le catalogue est traduit lui aussi.
+Verso est une librairie en ligne écrite avec Django REST Framework et Vue 3. On
+peut chercher des livres, remplir un panier, saisir une adresse de livraison,
+choisir un mode d'envoi et payer par carte. Les frais de port et la taxe
+dépendent du pays de destination. Une commande peut être annulée tant qu'elle
+n'est pas expédiée, et l'argent est remboursé. Les prix s'affichent dans toute
+devise proposée par la boutique, dollars, euros et roubles par défaut. L'équipe
+gère les livres, les commandes, les remboursements, les devises, la livraison
+et les taxes dans l'administration Django. L'interface est en anglais par
+défaut. Le russe, le français et l'allemand se choisissent dans l'en-tête, et
+le catalogue est traduit lui aussi.
 
 ![Catalogue](docs/screenshots/fr/catalog.png)
 
@@ -36,7 +39,8 @@ et relance les remboursements qui ont échoué.
 Pour essayer un paiement, validez le panier et payez avec la carte de test
 **4242 4242 4242 4242** (date future et code quelconques). La carte
 **4000 0000 0000 0002** est refusée. Le mode démo ne débite aucun argent. Pour
-utiliser le vrai Stripe Checkout, voir [Paiements](#paiements).
+utiliser le vrai Stripe Checkout, voir [Paiements](#paiements). Avant de payer, on saisit une adresse et un
+mode de livraison, et la taxe du pays de destination est ajoutée.
 
 La documentation de l'API (Swagger UI) se trouve sur
 <http://localhost:8080/api/docs/> et l'administration sur
@@ -67,6 +71,16 @@ l'appeler. Une commande passe par ces statuts.
 | **Expédiée, Livrée** | L'équipe, dans l'administration | Pas de changement |
 | **Annulée** | Le client, tant que la commande n'est pas expédiée. Une commande payée est remboursée | Les exemplaires reviennent en stock |
 
+Les frais de port et les taxes viennent de tables modifiables dans
+l'administration. Voici les valeurs par défaut.
+
+| Zone | Livraison | Gratuite dès | Taxe sur les livres |
+|---|---|---|---|
+| États-Unis | Standard $4.99, express $14.99 | $35 | aucune (la taxe des États n'est pas calculée) |
+| Union européenne | Standard $6.99, express $19.99 | $50 | TVA réduite, par exemple 7 % en Allemagne et 5,5 % en France |
+| Russie | Poste russe $5.99, coursier $11.99 | $40 | 10 % |
+| Reste du monde | International $12.99 | $80 | aucune |
+
 La commande se fait dans une seule transaction. Les lignes des livres sont
 d'abord verrouillées, puis le stock est vérifié.
 
@@ -96,22 +110,32 @@ with transaction.atomic():
   insuffisant. Le fournisseur Stripe crée une Checkout Session, et seule la
   notification Stripe signée marque la commande comme payée. Les notifications
   répétées ne changent rien.
-- Annuler une commande payée rembourse l'argent par le même fournisseur, tout
-  comme un paiement reçu pour une commande déjà annulée. La ligne du paiement
-  reste verrouillée pendant l'appel et Stripe reçoit une clé d'idempotence,
-  donc l'argent n'est jamais rendu deux fois. Un remboursement qui échoue est
-  relancé par le planificateur, et l'équipe peut rembourser n'importe quel
-  paiement depuis l'administration.
+- Le serveur calcule les frais de port et la taxe pour le pays et le mode
+  choisis, dans la devise choisie. La taxe porte sur les livres et sur la
+  livraison. La commande garde l'adresse, le mode de livraison avec son délai
+  et tous les montants, donc un changement de prix ultérieur ne la touche pas.
+- Chaque remboursement est une ligne à part avec un montant et un motif, donc
+  un paiement peut être remboursé en plusieurs fois. L'équipe rembourse
+  n'importe quel montant depuis l'administration, et l'annulation d'une
+  commande rembourse le reste. Un paiement reçu pour une commande déjà annulée
+  est remboursé automatiquement. Les lignes restent verrouillées pendant
+  l'appel au fournisseur et Stripe reçoit une clé d'idempotence par
+  remboursement, donc l'argent n'est jamais rendu deux fois. Un remboursement
+  qui échoue est relancé par le planificateur jusqu'à dix fois.
 - Le planificateur est une commande de gestion dans son propre conteneur. Il
   met à jour les taux une fois par jour, relance les remboursements toutes les
-  15 minutes et annule les paiements restés inachevés plus d'un jour. Chaque
+  15 minutes, annule les paiements restés inachevés plus d'un jour et annule
+  les commandes impayées depuis deux jours, ce qui remet leurs livres en
+  stock. Chaque
   tâche verrouille sa ligne dans la table `JobRun`, donc deux processus ne
   lancent jamais la même tâche, et l'administration montre l'heure et le
   résultat du dernier passage.
-- Les prix sont stockés en dollars. Les taux sont dans la table
-  `ExchangeRate`, une commande les met à jour depuis une source publique, et un
-  middleware convertit les prix dans la devise demandée par la SPA avec
-  l'en-tête `X-Currency`. Le filtre de prix utilise aussi cette devise.
+- Les prix sont stockés en dollars. Les devises sont des lignes que l'équipe
+  ajoute dans l'administration. Une nouvelle devise reçoit tout de suite son
+  taux depuis une source publique, et la vitrine la découvre via
+  `/api/currencies/`. Un middleware convertit les prix dans la devise demandée
+  par la SPA avec l'en-tête `X-Currency` et arrondit à l'unité de chaque
+  devise, donc les yens s'affichent sans décimales. Le filtre de prix utilise aussi cette devise.
 - Sur PostgreSQL, le catalogue utilise la recherche plein texte. Chaque livre
   a un `tsvector` construit à partir du texte anglais et de toutes les
   traductions, chacune avec sa propre racinisation, et un index GIN. Les
@@ -204,13 +228,15 @@ Vite transmet les mêmes chemins à `runserver`.
 | Module | Rôle |
 |---|---|
 | `backend/main/views.py` | Catalogue, panier, commande, historique, annulation |
+| `backend/main/checkout.py` | Zones et modes de livraison, taxes, devis pour un panier |
+| `backend/main/orders.py` | Annulation d'une commande avec remise en stock et remboursement |
 | `backend/main/authentication.py`, `auth_views.py` | JWT en cookies httpOnly, CSRF, connexion, rafraîchissement, déconnexion |
 | `backend/main/payments/`, `payment_views.py` | Fournisseurs démo et Stripe, état des paiements, webhook |
 | `backend/main/currency.py` | Devise active, conversion, cache des taux |
 | `backend/main/search.py` | Document de recherche, requête plein texte, tolérance aux fautes |
 | `backend/main/machine_translation.py` | Traduction des nouveaux livres avec DeepL |
 | `backend/main/scheduler.py` | Tâches périodiques et leur suivi dans `JobRun` |
-| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
+| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `Refund`, `Currency`, `ShippingZone`, `TaxRate` |
 | `frontend/src/services/api.ts` | Client API typé, CSRF, rafraîchissement partagé |
 | `frontend/src/currency.ts`, `i18n/` | Choix de la devise et de la langue, textes en quatre langues |
 | `frontend/src/pages/Payment.vue` | Formulaire de carte en mode démo, redirection vers Stripe |
@@ -226,10 +252,13 @@ apporté ces changements.
   inutilisés, les types React, l'analytics et les images de remplacement.
 - Annulation des commandes, filtres du catalogue et panier avec un nombre fixe
   de requêtes.
+- Page de commande avec adresse de livraison, zones et modes de livraison, et
+  taxes par pays.
 - Paiement par carte avec un fournisseur de démo et Stripe Checkout, avec
-  remboursement automatique quand une commande payée est annulée.
+  remboursements complets et partiels.
+- Liste des devises gérée dans l'administration.
 - Conteneur planificateur pour les taux de change, la relance des
-  remboursements et les paiements abandonnés.
+  remboursements, les paiements abandonnés et les commandes impayées.
 - Prix en euros et en roubles avec des taux de change enregistrés.
 - JWT déplacés de `localStorage` vers des cookies httpOnly, avec protection
   CSRF et révocation des jetons.
@@ -242,7 +271,7 @@ apporté ces changements.
   et de vraies couvertures pour les livres de démo.
 - Documentation de l'API avec OpenAPI et Swagger UI, limites de débit, health
   check et réglages HTTPS.
-- 229 tests, un test de fumée dans le navigateur, et les tests du backend
+- 267 tests, un test de fumée dans le navigateur, et les tests du backend
   tournent en CI sur SQLite et sur PostgreSQL.
 
 ## Captures d'écran
@@ -251,13 +280,17 @@ apporté ces changements.
 |---|---|
 | ![Page d'un livre](docs/screenshots/fr/book-detail.png) | ![Panier](docs/screenshots/fr/cart.png) |
 
+| Commande | Mobile |
+|---|---|
+| ![Commande](docs/screenshots/fr/checkout.png) | ![Mobile](docs/screenshots/fr/mobile-cart.png) |
+
 | Paiement | Historique des commandes |
 |---|---|
 | ![Paiement](docs/screenshots/fr/payment.png) | ![Commandes](docs/screenshots/fr/orders.png) |
 
-| Mode sombre | Mobile |
+| Mode sombre | Connexion |
 |---|---|
-| ![Mode sombre](docs/screenshots/fr/catalog-dark.png) | ![Mobile](docs/screenshots/fr/mobile-cart.png) |
+| ![Mode sombre](docs/screenshots/fr/catalog-dark.png) | ![Connexion](docs/screenshots/fr/login.png) |
 
 ## Paiements
 
@@ -332,6 +365,7 @@ dans `.env`, voir [`.env.example`](.env.example).
 | `UPDATE_RATES_ON_START` | Mettre à jour les taux au démarrage du conteneur | `1` |
 | `EXCHANGE_RATES_INTERVAL_HOURS` | Fréquence de mise à jour des taux par le planificateur | `24` |
 | `PAYMENT_TIMEOUT_HOURS` | Délai après lequel un paiement inachevé est annulé | `24` |
+| `UNPAID_ORDER_TIMEOUT_HOURS` | Les commandes impayées plus anciennes sont annulées et remises en stock | `48` |
 | `SEED_ON_START` | Charger les données de démo au démarrage du conteneur | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Compte administrateur créé au démarrage | aucun |
 | `HTTPS` | Cookies sécurisés, HSTS, redirection vers HTTPS | `False` |
@@ -351,17 +385,19 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # test dans le navigateur sur l'application lancée
 ```
 
-Le backend a 133 tests avec 96 % de couverture. Ils vérifient l'API,
+Le backend a 160 tests avec 95 % de couverture. Ils vérifient l'API,
 l'authentification par cookies et le CSRF, la commande, l'annulation, les deux
-fournisseurs de paiement avec la signature du webhook, les remboursements et
-leurs relances, le planificateur, la conversion des devises, la recherche
-plein texte, la traduction automatique et sa relecture, le nombre de requêtes
-SQL et les limites de débit. La CI les lance sur SQLite et sur
-PostgreSQL. Le frontend a 96 tests avec 94 % de couverture pour les pages, le
-formulaire de paiement, les contrôles du routeur, le client API, les devises
-et les traductions. Le test de fumée se connecte, achète un livre, paie avec
-une carte refusée puis avec une carte valide, annule la commande pour être
-remboursé et vérifie qu'aucun jeton n'est lisible depuis JavaScript.
+fournisseurs de paiement avec la signature du webhook, le calcul des frais de
+port et des taxes, les remboursements complets et partiels et leurs relances,
+le planificateur, les devises gérées dans l'administration, la recherche plein
+texte, la traduction automatique et sa relecture, le nombre de requêtes SQL et
+les limites de débit. La CI les lance sur SQLite et sur PostgreSQL. Le frontend
+a 107 tests avec 95 % de couverture pour la page de commande, les pages, le
+formulaire de paiement, les contrôles du routeur, le client API, les devises et
+les traductions. Le test de fumée se connecte, achète un livre livré en
+Allemagne, paie avec une carte refusée puis avec une carte valide, annule la
+commande pour être remboursé et vérifie qu'aucun jeton n'est lisible depuis
+JavaScript.
 
 Les captures dans toutes les langues sont prises sur l'application en marche
 avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -370,13 +406,10 @@ avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
 Ce qui manque dans la version actuelle.
 
-- Il n'y a ni adresse de livraison, ni frais de port, ni calcul des taxes. La
-  livraison est affichée comme gratuite.
-- Un remboursement rend toujours le montant complet. Les remboursements
-  partiels se font dans le tableau de bord Stripe.
-- La liste des devises (USD, EUR, RUB) est définie dans le réglage
-  `CURRENCIES`. En ajouter une demande une modification du code et un taux
-  dans la source.
+- La taxe est fixée par pays. La taxe de vente américaine, qui dépend de
+  l'État et de la ville, n'est pas calculée.
+- Les frais de port sont fixes pour une commande et un mode de livraison. Ils
+  ne dépendent ni du poids ni du nombre de livres.
 
 ## Structure du projet
 
@@ -391,12 +424,13 @@ Ce qui manque dans la version actuelle.
 │       ├── migrations/
 │       ├── tests/           # auth, cœur, devises, paiements, recherche, traduction
 │       ├── authentication.py, auth_views.py, payment_views.py
+│       ├── checkout.py, orders.py, countries.py
 │       ├── currency.py, search.py, machine_translation.py, scheduler.py
 │       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/
 │   │   ├── i18n/            # configuration de vue-i18n et textes en quatre langues
-│   │   ├── pages/           # catalogue, livre, panier, paiement, commandes, connexion, 404
+│   │   ├── pages/           # catalogue, livre, panier, commande, paiement, commandes, connexion, 404
 │   │   ├── components/      # BookCover, StockBadge
 │   │   ├── services/api.ts  # client API typé
 │   │   ├── currency.ts

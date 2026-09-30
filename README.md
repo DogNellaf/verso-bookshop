@@ -11,10 +11,12 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Verso is an online bookstore built with Django REST Framework and Vue 3. You
-can search the catalog, add books to a cart, place an order and pay for it
-with a card, or cancel it while it is still pending. Prices can be shown in US
-dollars, euros or rubles. Staff manage books, orders, payments and exchange
-rates in the Django admin. The interface is in English by default. Russian,
+can search the catalog, add books to a cart, enter a delivery address, pick a
+shipping method and pay by card. Shipping and tax depend on the destination.
+Orders can be cancelled until they ship, and the money is refunded. Prices are
+shown in any currency the shop offers, US dollars, euros and rubles out of the
+box. Staff manage books, orders, refunds, currencies, shipping and tax in the
+Django admin. The interface is in English by default. Russian,
 French and German can be picked in the header, and the book catalog is
 translated too.
 
@@ -35,7 +37,9 @@ keeps the rates up to date and retries failed refunds.
 To try a payment, check out the cart and pay with the test card
 **4242 4242 4242 4242** (any future date, any code). The card
 **4000 0000 0000 0002** is declined. No money is charged in the demo mode. To
-use real Stripe Checkout instead, see [Payments](#payments).
+use real Stripe Checkout instead, see [Payments](#payments). Before paying you
+enter a delivery address and choose a shipping method, and the tax of the
+destination country is added.
 
 The API reference (Swagger UI) is at <http://localhost:8080/api/docs/> and the
 admin is at <http://localhost:8080/admin/>. To get an admin account on start,
@@ -62,6 +66,16 @@ order goes through these statuses.
 | **Paid** | A successful payment (demo card or Stripe webhook) | No change |
 | **Shipped, Delivered** | Staff in the admin | No change |
 | **Cancelled** | The customer, until the order ships. A paid order is refunded | Copies go back to stock |
+
+Shipping and tax come from tables that staff edit in the admin. These are the
+defaults.
+
+| Zone | Shipping | Free from | Tax on books |
+|---|---|---|---|
+| United States | Standard $4.99, Express $14.99 | $35 | none (state sales tax is not collected) |
+| European Union | Standard $6.99, Express $19.99 | $50 | reduced VAT, e.g. 7% in Germany, 5.5% in France |
+| Russia | Russian Post $5.99, Courier $11.99 | $40 | 10% |
+| Rest of the world | International $12.99 | $80 | none |
 
 Checkout runs in one transaction and locks the book rows before it checks the
 stock.
@@ -90,19 +104,27 @@ with transaction.atomic():
   and missing funds. The Stripe provider creates a Checkout Session, and only
   the signed Stripe webhook marks an order as paid. Webhook deliveries are
   idempotent.
-- Cancelling a paid order refunds the money through the same provider, and so
-  does a payment that arrives for an order cancelled in the meantime. The
-  payment row stays locked during the call and Stripe gets an idempotency key,
-  so money is never returned twice. A failed refund is retried by the
-  scheduler, and staff can refund any payment from the admin.
+- The checkout quotes shipping and tax on the server for the chosen country
+  and method, in the chosen currency. Tax applies to the books and the
+  shipping. The order keeps the address, the method with its delivery time and
+  every amount, so later price changes don't touch it.
+- Every refund is its own row with an amount and a reason, so a payment can be
+  refunded in parts. Staff refund any amount from the admin, and cancelling an
+  order refunds what is left. Money that arrives for an order cancelled in the
+  meantime goes back automatically. Rows stay locked during the provider call
+  and Stripe gets an idempotency key per refund, so money never goes back
+  twice. A failed refund is retried by the scheduler up to ten times.
 - The scheduler is a management command in its own container. It updates the
-  exchange rates once a day, retries refunds every 15 minutes and cancels
-  payments nobody finished within a day. Each job locks its row in the
+  exchange rates once a day, retries refunds every 15 minutes, cancels
+  payments nobody finished within a day and cancels orders left unpaid for two
+  days, which puts their books back on the shelf. Each job locks its row in the
   `JobRun` table, so two scheduler processes never run the same job, and the
   admin shows the time and result of the last run.
-- Prices are stored in US dollars. `ExchangeRate` rows hold the rates, a
-  command updates them from a public feed, and a middleware converts prices
-  for the currency the SPA asks for in `X-Currency`. Price filters work in the
+- Prices are stored in US dollars. Currencies are rows that staff add in the
+  admin. A new currency gets its rate from a public feed right away, and the
+  storefront picks it up from `/api/currencies/`. A middleware converts prices
+  for the currency the SPA asks for in `X-Currency`, rounding to the minor unit
+  of each currency, so yen come without decimals. Price filters work in the
   chosen currency too.
 - On PostgreSQL the catalog uses full-text search. Each book has a `tsvector`
   built from the English text and all translations, each stemmed with its own
@@ -186,13 +208,15 @@ paths to `runserver`.
 | Module | Responsibility |
 |---|---|
 | `backend/main/views.py` | Catalog, cart, checkout, orders, cancellation |
+| `backend/main/checkout.py` | Shipping zones and methods, tax, the quote for a cart |
+| `backend/main/orders.py` | Cancelling an order with restock and refund |
 | `backend/main/authentication.py`, `auth_views.py` | JWT in httpOnly cookies, CSRF, sign in, refresh, sign out |
 | `backend/main/payments/`, `payment_views.py` | Demo and Stripe providers, payment state, webhook |
 | `backend/main/currency.py` | Active currency, conversion, rate cache |
 | `backend/main/search.py` | Search document, full-text query, trigram fallback |
 | `backend/main/machine_translation.py` | DeepL translation of new books |
 | `backend/main/scheduler.py` | Periodic jobs and their `JobRun` records |
-| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
+| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `Refund`, `Currency`, `ShippingZone`, `TaxRate` |
 | `frontend/src/services/api.ts` | Typed API client, CSRF, shared session refresh |
 | `frontend/src/currency.ts`, `i18n/` | Currency and language choice, texts in four languages |
 | `frontend/src/pages/Payment.vue` | Card form for the demo mode, redirect for Stripe |
@@ -207,10 +231,13 @@ API and a Vue frontend. The overhaul included these changes.
   PostCSS, React types, analytics and placeholder images.
 - Added order cancellation, catalog filters and a cart with a fixed number of
   queries.
-- Added card payments with a demo provider and Stripe Checkout, with automatic
-  refunds when a paid order is cancelled.
-- Added a scheduler container for exchange rates, refund retries and stale
-  payments.
+- Added a checkout page with a delivery address, shipping zones and methods,
+  and taxes by country.
+- Added card payments with a demo provider and Stripe Checkout, with full and
+  partial refunds.
+- Moved the list of currencies into the admin.
+- Added a scheduler container for exchange rates, refund retries, stale
+  payments and unpaid orders.
 - Added prices in euros and rubles with stored exchange rates.
 - Moved JWT tokens from `localStorage` to httpOnly cookies with CSRF
   protection and token revocation.
@@ -223,7 +250,7 @@ API and a Vue frontend. The overhaul included these changes.
   and added real covers for the demo books.
 - Documented the API with OpenAPI and Swagger UI, added rate limits, a health
   check and HTTPS settings.
-- Grew the test suite to 229 tests, added a browser smoke test and ran the
+- Grew the test suite to 267 tests, added a browser smoke test and ran the
   backend tests on both SQLite and PostgreSQL in CI.
 
 ## Screenshots
@@ -232,13 +259,17 @@ API and a Vue frontend. The overhaul included these changes.
 |---|---|
 | ![Book page](docs/screenshots/en/book-detail.png) | ![Cart](docs/screenshots/en/cart.png) |
 
+| Checkout | Mobile |
+|---|---|
+| ![Checkout](docs/screenshots/en/checkout.png) | ![Mobile](docs/screenshots/en/mobile-cart.png) |
+
 | Payment | Order history |
 |---|---|
 | ![Payment](docs/screenshots/en/payment.png) | ![Orders](docs/screenshots/en/orders.png) |
 
-| Dark mode | Mobile |
+| Dark mode | Sign in |
 |---|---|
-| ![Dark mode](docs/screenshots/en/catalog-dark.png) | ![Mobile](docs/screenshots/en/mobile-cart.png) |
+| ![Dark mode](docs/screenshots/en/catalog-dark.png) | ![Sign in](docs/screenshots/en/login.png) |
 
 ## Payments
 
@@ -311,6 +342,7 @@ Settings are read from environment variables. docker-compose takes them from
 | `UPDATE_RATES_ON_START` | Fetch rates when the container starts | `1` |
 | `EXCHANGE_RATES_INTERVAL_HOURS` | How often the scheduler fetches rates | `24` |
 | `PAYMENT_TIMEOUT_HOURS` | Unfinished payments older than this are cancelled | `24` |
+| `UNPAID_ORDER_TIMEOUT_HOURS` | Unpaid orders older than this are cancelled and restocked | `48` |
 | `SEED_ON_START` | Load demo data when the container starts | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Admin account created on start | none |
 | `HTTPS` | Secure cookies, HSTS, redirect to HTTPS | `False` |
@@ -330,16 +362,16 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # browser test against a running app
 ```
 
-The backend has 133 tests with 96% coverage. They cover the API, cookie
+The backend has 160 tests with 95% coverage. They cover the API, cookie
 authentication and CSRF, checkout, cancellation, both payment providers
-including webhook signatures, refunds and their retries, the scheduler,
-currency conversion, full-text search, machine translation and its review,
-the number of SQL queries and rate limits. CI runs them on SQLite
-and on PostgreSQL. The frontend has 96 tests with 94% coverage for pages, the
-payment form, router guards, the API client, currencies and translations. The
-smoke test signs in, buys a book, pays with a declined and a working test card,
-cancels the order to get a refund and checks that no token is readable from
-JavaScript.
+including webhook signatures, shipping and tax quotes, full and partial refunds
+and their retries, the scheduler, currencies managed in the admin, full-text
+search, machine translation and its review, the number of SQL queries and rate
+limits. CI runs them on SQLite and on PostgreSQL. The frontend has 107 tests
+with 95% coverage for the checkout, pages, the payment form, router guards, the
+API client, currencies and translations. The smoke test signs in, buys a book
+with delivery to Germany, pays with a declined and a working test card, cancels
+the order to get a refund and checks that no token is readable from JavaScript.
 
 Screenshots for all languages are taken from a running app with
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -348,12 +380,10 @@ Screenshots for all languages are taken from a running app with
 
 Known limits of the current version.
 
-- There is no delivery address, shipping cost or tax calculation. Shipping is
-  shown as free.
-- Refunds always return the full amount. Partial refunds are done in the
-  Stripe dashboard.
-- The list of currencies (USD, EUR, RUB) is set in `CURRENCIES` in the
-  settings. Adding one needs a code change and a rate in the feed.
+- Tax is set per country. US sales tax, which depends on the state and the
+  city, is not calculated.
+- Shipping has a fixed price per order and method. It does not depend on the
+  weight or the number of books.
 
 ## Project structure
 
@@ -368,12 +398,13 @@ Known limits of the current version.
 │       ├── migrations/
 │       ├── tests/           # auth, core, currency, payments, search, translation
 │       ├── authentication.py, auth_views.py, payment_views.py
+│       ├── checkout.py, orders.py, countries.py
 │       ├── currency.py, search.py, machine_translation.py, scheduler.py
 │       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/
 │   │   ├── i18n/            # vue-i18n setup and texts in four languages
-│   │   ├── pages/           # catalog, book, cart, payment, orders, sign in, 404
+│   │   ├── pages/           # catalog, book, cart, checkout, payment, orders, sign in, 404
 │   │   ├── components/      # BookCover, StockBadge
 │   │   ├── services/api.ts  # typed API client
 │   │   ├── currency.ts

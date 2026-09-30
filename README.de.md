@@ -11,12 +11,14 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Verso ist eine Online-Buchhandlung mit Django REST Framework und Vue 3. Man
-kann im Katalog suchen, einen Warenkorb füllen, bestellen und mit Karte
-bezahlen oder die Bestellung stornieren, solange sie noch aussteht. Preise
-lassen sich in US-Dollar, Euro oder Rubel anzeigen. Mitarbeitende verwalten
-Bücher, Bestellungen, Zahlungen und Wechselkurse im Django-Admin. Die
-Oberfläche ist standardmäßig englisch. Russisch, Französisch und Deutsch
-lassen sich im Kopfbereich wählen, und auch der Buchkatalog ist übersetzt.
+kann im Katalog suchen, einen Warenkorb füllen, eine Lieferadresse eingeben,
+eine Versandart wählen und mit Karte bezahlen. Versandkosten und Steuer hängen
+vom Zielland ab. Eine Bestellung lässt sich stornieren, bis sie versandt ist,
+und das Geld wird erstattet. Preise erscheinen in jeder Währung, die der Shop
+anbietet, ab Werk US-Dollar, Euro und Rubel. Mitarbeitende verwalten Bücher,
+Bestellungen, Erstattungen, Währungen, Versand und Steuern im Django-Admin. Die
+Oberfläche ist standardmäßig englisch. Russisch, Französisch und Deutsch lassen
+sich im Kopfbereich wählen, und auch der Buchkatalog ist übersetzt.
 
 ![Katalog](docs/screenshots/de/catalog.png)
 
@@ -37,7 +39,8 @@ Zum Ausprobieren einer Zahlung bestellen Sie den Warenkorb und bezahlen mit
 der Testkarte **4242 4242 4242 4242** (beliebiges künftiges Datum, beliebiger
 Code). Die Karte **4000 0000 0000 0002** wird abgelehnt. Im Demo-Modus wird
 kein Geld abgebucht. Wie man echtes Stripe Checkout nutzt, steht unter
-[Zahlungen](#zahlungen).
+[Zahlungen](#zahlungen). Vor der Zahlung geben Sie eine Adresse ein und
+wählen eine Versandart, und die Steuer des Ziellandes kommt hinzu.
 
 Die API-Dokumentation (Swagger UI) liegt unter
 <http://localhost:8080/api/docs/>, der Admin unter
@@ -67,6 +70,16 @@ Eine Bestellung durchläuft diese Status.
 | **Versandt, Zugestellt** | Mitarbeitende im Admin | Keine Änderung |
 | **Storniert** | Die Kundschaft, bis die Bestellung versandt ist. Eine bezahlte Bestellung wird erstattet | Exemplare gehen zurück in den Bestand |
 
+Versand und Steuern kommen aus Tabellen, die Mitarbeitende im Admin pflegen.
+Das sind die Standardwerte.
+
+| Zone | Versand | Kostenlos ab | Steuer auf Bücher |
+|---|---|---|---|
+| USA | Standard $4.99, Express $14.99 | $35 | keine (Sales Tax der Bundesstaaten wird nicht erhoben) |
+| Europäische Union | Standard $6.99, Express $19.99 | $50 | ermäßigte MwSt., etwa 7 % in Deutschland und 5,5 % in Frankreich |
+| Russland | Russische Post $5.99, Kurier $11.99 | $40 | 10 % |
+| Rest der Welt | International $12.99 | $80 | keine |
+
 Die Bestellung läuft in einer Transaktion. Zuerst werden die Buchzeilen
 gesperrt, danach wird der Bestand geprüft.
 
@@ -95,21 +108,30 @@ with transaction.atomic():
   Erfolg, Ablehnung und fehlende Deckung. Der Stripe-Anbieter legt eine
   Checkout Session an, und erst der signierte Stripe-Webhook markiert die
   Bestellung als bezahlt. Doppelte Webhooks ändern nichts.
-- Wird eine bezahlte Bestellung storniert, geht das Geld über denselben
-  Anbieter zurück, ebenso bei einer Zahlung für eine bereits stornierte
-  Bestellung. Die Zahlungszeile bleibt während des Aufrufs gesperrt und
-  Stripe bekommt einen Idempotenzschlüssel, daher wird nie doppelt erstattet.
-  Eine fehlgeschlagene Erstattung wiederholt der Planer, und Mitarbeitende
-  können jede Zahlung im Admin erstatten.
+- Der Server berechnet Versand und Steuer für das gewählte Land und die
+  Versandart in der gewählten Währung. Die Steuer gilt für Bücher und Versand.
+  Die Bestellung speichert Adresse, Versandart mit Lieferzeit und alle Beträge,
+  spätere Preisänderungen berühren sie also nicht.
+- Jede Erstattung ist eine eigene Zeile mit Betrag und Grund, daher lässt sich
+  eine Zahlung in Teilen erstatten. Mitarbeitende erstatten im Admin jeden
+  Betrag, und eine Stornierung erstattet den Rest. Geld, das für eine bereits
+  stornierte Bestellung eingeht, geht automatisch zurück. Die Zeilen bleiben
+  während des Anbieteraufrufs gesperrt und Stripe bekommt pro Erstattung einen
+  Idempotenzschlüssel, daher wird nie doppelt erstattet. Eine fehlgeschlagene
+  Erstattung wiederholt der Planer bis zu zehnmal.
 - Der Planer ist ein Management-Befehl in einem eigenen Container. Er holt
-  einmal am Tag die Wechselkurse, wiederholt alle 15 Minuten Erstattungen und
-  storniert Zahlungen, die nach einem Tag noch offen sind. Jeder Job sperrt
+  einmal am Tag die Wechselkurse, wiederholt alle 15 Minuten Erstattungen,
+  storniert Zahlungen, die nach einem Tag noch offen sind, und storniert
+  Bestellungen, die zwei Tage unbezahlt bleiben, wodurch ihre Bücher zurück in
+  den Bestand gehen. Jeder Job sperrt
   seine Zeile in der Tabelle `JobRun`, daher laufen nie zwei Prozesse mit
   demselben Job, und der Admin zeigt Zeit und Ergebnis des letzten Laufs.
-- Preise werden in US-Dollar gespeichert. Die Kurse stehen in der Tabelle
-  `ExchangeRate`, ein Befehl holt sie aus einer öffentlichen Quelle, und eine
-  Middleware rechnet die Preise in die Währung um, die die SPA im Header
-  `X-Currency` anfragt. Auch der Preisfilter nutzt diese Währung.
+- Preise werden in US-Dollar gespeichert. Währungen sind Zeilen, die
+  Mitarbeitende im Admin anlegen. Eine neue Währung bekommt sofort ihren Kurs
+  aus einer öffentlichen Quelle, und das Frontend erfährt davon über
+  `/api/currencies/`. Eine Middleware rechnet die Preise in die Währung um, die
+  die SPA im Header `X-Currency` anfragt, und rundet auf die kleinste Einheit
+  der Währung, daher erscheinen Yen ohne Nachkommastellen. Auch der Preisfilter nutzt diese Währung.
 - Auf PostgreSQL nutzt der Katalog die Volltextsuche. Jedes Buch hat einen
   `tsvector` aus dem englischen Text und allen Übersetzungen, jeweils mit der
   eigenen Stammformbildung, und einen GIN-Index. Die Treffer sind nach
@@ -197,13 +219,15 @@ dieselben Pfade an `runserver` weiter.
 | Modul | Aufgabe |
 |---|---|
 | `backend/main/views.py` | Katalog, Warenkorb, Bestellung, Historie, Stornierung |
+| `backend/main/checkout.py` | Versandzonen und Versandarten, Steuern, Angebot für einen Warenkorb |
+| `backend/main/orders.py` | Stornierung mit Rückbuchung in den Bestand und Erstattung |
 | `backend/main/authentication.py`, `auth_views.py` | JWT in httpOnly-Cookies, CSRF, Anmeldung, Erneuerung, Abmeldung |
 | `backend/main/payments/`, `payment_views.py` | Demo- und Stripe-Anbieter, Zahlungsstatus, Webhook |
 | `backend/main/currency.py` | Aktive Währung, Umrechnung, Kurs-Cache |
 | `backend/main/search.py` | Suchdokument, Volltextabfrage, Toleranz für Tippfehler |
 | `backend/main/machine_translation.py` | Übersetzung neuer Bücher mit DeepL |
 | `backend/main/scheduler.py` | Periodische Jobs und ihre Einträge in `JobRun` |
-| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
+| `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `Refund`, `Currency`, `ShippingZone`, `TaxRate` |
 | `frontend/src/services/api.ts` | Typisierter API-Client, CSRF, gemeinsame Sitzungserneuerung |
 | `frontend/src/currency.ts`, `i18n/` | Wahl von Währung und Sprache, Texte in vier Sprachen |
 | `frontend/src/pages/Payment.vue` | Kartenformular im Demo-Modus, Weiterleitung zu Stripe |
@@ -218,10 +242,13 @@ Später wurde es in eine REST-API und ein Vue-Frontend aufgeteilt. Die
 - Reste einer generierten Vorlage entfernt, etwa ungenutztes Tailwind und
   PostCSS, React-Typen, Analytics und Platzhalterbilder.
 - Stornierung, Katalogfilter und ein Warenkorb mit fester Zahl an Abfragen.
-- Kartenzahlung mit einem Demo-Anbieter und Stripe Checkout, mit
-  automatischer Erstattung, wenn eine bezahlte Bestellung storniert wird.
-- Ein Planer-Container für Wechselkurse, wiederholte Erstattungen und
-  liegengebliebene Zahlungen.
+- Eine Bestellseite mit Lieferadresse, Versandzonen und Versandarten sowie
+  Steuern nach Land.
+- Kartenzahlung mit einem Demo-Anbieter und Stripe Checkout, mit vollen und
+  teilweisen Erstattungen.
+- Die Liste der Währungen wird im Admin gepflegt.
+- Ein Planer-Container für Wechselkurse, wiederholte Erstattungen,
+  liegengebliebene Zahlungen und unbezahlte Bestellungen.
 - Preise in Euro und Rubel mit gespeicherten Wechselkursen.
 - JWT aus `localStorage` in httpOnly-Cookies verschoben, mit CSRF-Schutz und
   Widerruf von Tokens.
@@ -234,7 +261,7 @@ Später wurde es in eine REST-API und ein Vue-Frontend aufgeteilt. Die
   Covern für die Demo-Bücher.
 - API-Dokumentation mit OpenAPI und Swagger UI, Ratenlimits, Health Check und
   HTTPS-Einstellungen.
-- 229 Tests, ein Smoke-Test im Browser, und die Backend-Tests laufen in der CI
+- 267 Tests, ein Smoke-Test im Browser, und die Backend-Tests laufen in der CI
   auf SQLite und auf PostgreSQL.
 
 ## Screenshots
@@ -243,13 +270,17 @@ Später wurde es in eine REST-API und ein Vue-Frontend aufgeteilt. Die
 |---|---|
 | ![Buchseite](docs/screenshots/de/book-detail.png) | ![Warenkorb](docs/screenshots/de/cart.png) |
 
+| Bestellung | Mobil |
+|---|---|
+| ![Bestellung](docs/screenshots/de/checkout.png) | ![Mobil](docs/screenshots/de/mobile-cart.png) |
+
 | Bezahlung | Bestellhistorie |
 |---|---|
 | ![Bezahlung](docs/screenshots/de/payment.png) | ![Bestellungen](docs/screenshots/de/orders.png) |
 
-| Dark Mode | Mobil |
+| Dark Mode | Anmeldung |
 |---|---|
-| ![Dark Mode](docs/screenshots/de/catalog-dark.png) | ![Mobil](docs/screenshots/de/mobile-cart.png) |
+| ![Dark Mode](docs/screenshots/de/catalog-dark.png) | ![Anmeldung](docs/screenshots/de/login.png) |
 
 ## Zahlungen
 
@@ -324,6 +355,7 @@ Die Einstellungen kommen aus Umgebungsvariablen. docker-compose liest sie aus
 | `UPDATE_RATES_ON_START` | Kurse beim Containerstart holen | `1` |
 | `EXCHANGE_RATES_INTERVAL_HOURS` | Wie oft der Planer die Kurse holt | `24` |
 | `PAYMENT_TIMEOUT_HOURS` | Nach so vielen Stunden werden offene Zahlungen storniert | `24` |
+| `UNPAID_ORDER_TIMEOUT_HOURS` | Ältere unbezahlte Bestellungen werden storniert und zurückgebucht | `48` |
 | `SEED_ON_START` | Demo-Daten beim Containerstart laden | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Admin-Konto, das beim Start angelegt wird | keins |
 | `HTTPS` | Sichere Cookies, HSTS, Weiterleitung auf HTTPS | `False` |
@@ -343,17 +375,18 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # Browsertest gegen die laufende App
 ```
 
-Das Backend hat 133 Tests mit 96 % Abdeckung. Sie prüfen API,
-Cookie-Anmeldung und CSRF, Bestellung, Stornierung, beide Zahlungsanbieter
-samt Webhook-Signatur, Erstattungen und ihre Wiederholung, den Planer,
-Währungsumrechnung, Volltextsuche, maschinelle Übersetzung und ihre Prüfung,
-die Zahl der SQL-Abfragen und Ratenlimits. Die CI führt sie auf
-SQLite und auf PostgreSQL aus. Das Frontend hat 96 Tests mit 94 % Abdeckung
-für Seiten, das Zahlungsformular, Router-Prüfungen, den API-Client, Währungen
-und Übersetzungen. Der Smoke-Test meldet sich an, kauft ein Buch, bezahlt
-erst mit einer abgelehnten, dann mit einer gültigen Testkarte, storniert die
-Bestellung für eine Erstattung und prüft, dass JavaScript kein Token lesen
-kann.
+Das Backend hat 160 Tests mit 95 % Abdeckung. Sie prüfen API, Cookie-Anmeldung
+und CSRF, Bestellung, Stornierung, beide Zahlungsanbieter samt Webhook-
+Signatur, die Berechnung von Versand und Steuer, volle und teilweise
+Erstattungen und ihre Wiederholung, den Planer, im Admin gepflegte Währungen,
+Volltextsuche, maschinelle Übersetzung und ihre Prüfung, die Zahl der SQL-
+Abfragen und Ratenlimits. Die CI führt sie auf SQLite und auf PostgreSQL aus.
+Das Frontend hat 107 Tests mit 95 % Abdeckung für die Bestellseite, Seiten, das
+Zahlungsformular, Router-Prüfungen, den API-Client, Währungen und
+Übersetzungen. Der Smoke-Test meldet sich an, kauft ein Buch mit Lieferung nach
+Deutschland, bezahlt erst mit einer abgelehnten, dann mit einer gültigen
+Testkarte, storniert die Bestellung für eine Erstattung und prüft, dass
+JavaScript kein Token lesen kann.
 
 Screenshots in allen Sprachen entstehen an der laufenden App mit
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -362,12 +395,10 @@ Screenshots in allen Sprachen entstehen an der laufenden App mit
 
 Was in der aktuellen Version fehlt.
 
-- Es gibt keine Lieferadresse, keine Versandkosten und keine
-  Steuerberechnung. Der Versand wird als kostenlos angezeigt.
-- Erstattungen gehen immer über den vollen Betrag. Teilerstattungen erfolgen
-  im Stripe-Dashboard.
-- Die Währungen (USD, EUR, RUB) stehen in der Einstellung `CURRENCIES`. Für
-  eine neue Währung braucht es eine Codeänderung und einen Kurs in der Quelle.
+- Die Steuer gilt pro Land. Die US-Sales-Tax, die von Bundesstaat und Stadt
+  abhängt, wird nicht berechnet.
+- Der Versand hat einen festen Preis pro Bestellung und Versandart. Er hängt
+  nicht vom Gewicht oder der Zahl der Bücher ab.
 
 ## Projektstruktur
 
@@ -382,12 +413,13 @@ Was in der aktuellen Version fehlt.
 │       ├── migrations/
 │       ├── tests/           # Anmeldung, Kern, Währungen, Zahlungen, Suche, Übersetzung
 │       ├── authentication.py, auth_views.py, payment_views.py
+│       ├── checkout.py, orders.py, countries.py
 │       ├── currency.py, search.py, machine_translation.py, scheduler.py
 │       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/
 │   │   ├── i18n/            # Einrichtung von vue-i18n und Texte in vier Sprachen
-│   │   ├── pages/           # Katalog, Buch, Warenkorb, Bezahlung, Bestellungen, Anmeldung, 404
+│   │   ├── pages/           # Katalog, Buch, Warenkorb, Bestellung, Bezahlung, Bestellungen, Anmeldung, 404
 │   │   ├── components/      # BookCover, StockBadge
 │   │   ├── services/api.ts  # typisierter API-Client
 │   │   ├── currency.ts
