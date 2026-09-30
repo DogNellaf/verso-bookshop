@@ -30,7 +30,8 @@ Ouvrez <http://localhost:8080> et cliquez sur **Compte de démo** sur la page
 de connexion, ou connectez-vous avec **demo / demopass123**. L'utilisateur de
 démo a déjà trois commandes et quelques livres dans son panier. Au premier
 démarrage, la base reçoit 18 romans classiques avec leurs couvertures et des
-taux de change à jour.
+taux de change à jour. Un conteneur planificateur séparé garde les taux à jour
+et relance les remboursements qui ont échoué.
 
 Pour essayer un paiement, validez le panier et payez avec la carte de test
 **4242 4242 4242 4242** (date future et code quelconques). La carte
@@ -64,7 +65,7 @@ l'appeler. Une commande passe par ces statuts.
 | **En attente** | La validation du panier | Les exemplaires sont retirés du stock |
 | **Payée** | Un paiement réussi (carte de démo ou webhook Stripe) | Pas de changement |
 | **Expédiée, Livrée** | L'équipe, dans l'administration | Pas de changement |
-| **Annulée** | Le client, seulement si la commande est en attente | Les exemplaires reviennent en stock |
+| **Annulée** | Le client, tant que la commande n'est pas expédiée. Une commande payée est remboursée | Les exemplaires reviennent en stock |
 
 La commande se fait dans une seule transaction. Les lignes des livres sont
 d'abord verrouillées, puis le stock est vérifié.
@@ -94,8 +95,19 @@ with transaction.atomic():
   propose des cartes de test pour le succès, le refus et le solde
   insuffisant. Le fournisseur Stripe crée une Checkout Session, et seule la
   notification Stripe signée marque la commande comme payée. Les notifications
-  répétées ne changent rien, et l'argent reçu pour une commande annulée entre
-  temps est signalé pour remboursement.
+  répétées ne changent rien.
+- Annuler une commande payée rembourse l'argent par le même fournisseur, tout
+  comme un paiement reçu pour une commande déjà annulée. La ligne du paiement
+  reste verrouillée pendant l'appel et Stripe reçoit une clé d'idempotence,
+  donc l'argent n'est jamais rendu deux fois. Un remboursement qui échoue est
+  relancé par le planificateur, et l'équipe peut rembourser n'importe quel
+  paiement depuis l'administration.
+- Le planificateur est une commande de gestion dans son propre conteneur. Il
+  met à jour les taux une fois par jour, relance les remboursements toutes les
+  15 minutes et annule les paiements restés inachevés plus d'un jour. Chaque
+  tâche verrouille sa ligne dans la table `JobRun`, donc deux processus ne
+  lancent jamais la même tâche, et l'administration montre l'heure et le
+  résultat du dernier passage.
 - Les prix sont stockés en dollars. Les taux sont dans la table
   `ExchangeRate`, une commande les met à jour depuis une source publique, et un
   middleware convertit les prix dans la devise demandée par la SPA avec
@@ -154,9 +166,12 @@ with transaction.atomic():
 - Les titres, auteurs et descriptions des livres sont stockés dans
   `BookTranslation`, une ligne par langue, avec repli sur l'anglais. Si
   `DEEPL_API_KEY` est défini, un nouveau livre est traduit automatiquement
-  quand l'équipe l'ajoute. L'administration montre les livres auxquels il
-  manque une langue et peut traduire une sélection. Chaque traduction peut être
-  corrigée à la main.
+  quand l'équipe l'ajoute.
+- Les traductions automatiques sont marquées à relire. L'administration a une
+  file de relecture et une action « Mark as reviewed », et enregistrer une
+  traduction corrigée compte comme une relecture. Avec
+  `PUBLISH_UNREVIEWED_TRANSLATIONS=False`, la vitrine garde le texte anglais
+  tant qu'une personne n'a pas validé la traduction.
 - Les messages de l'API, y compris les erreurs de carte, sont traduits avec
   gettext de Django. Le frontend envoie la langue choisie dans
   `Accept-Language`. La CI vérifie que les fichiers `.mo` compilés
@@ -177,6 +192,9 @@ flowchart LR
     S -->|webhook signé| G
     G -->|nouveaux livres| D[DeepL]
     G -->|taux quotidiens| R[Source des taux]
+    C[Planificateur<br/>run_scheduler] --> P
+    C --> R
+    C -->|relance des remboursements| S
 ```
 
 La SPA et l'API partagent la même origine, il n'y a donc pas de CORS en
@@ -191,6 +209,7 @@ Vite transmet les mêmes chemins à `runserver`.
 | `backend/main/currency.py` | Devise active, conversion, cache des taux |
 | `backend/main/search.py` | Document de recherche, requête plein texte, tolérance aux fautes |
 | `backend/main/machine_translation.py` | Traduction des nouveaux livres avec DeepL |
+| `backend/main/scheduler.py` | Tâches périodiques et leur suivi dans `JobRun` |
 | `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
 | `frontend/src/services/api.ts` | Client API typé, CSRF, rafraîchissement partagé |
 | `frontend/src/currency.ts`, `i18n/` | Choix de la devise et de la langue, textes en quatre langues |
@@ -207,19 +226,23 @@ apporté ces changements.
   inutilisés, les types React, l'analytics et les images de remplacement.
 - Annulation des commandes, filtres du catalogue et panier avec un nombre fixe
   de requêtes.
-- Paiement par carte avec un fournisseur de démo et Stripe Checkout.
+- Paiement par carte avec un fournisseur de démo et Stripe Checkout, avec
+  remboursement automatique quand une commande payée est annulée.
+- Conteneur planificateur pour les taux de change, la relance des
+  remboursements et les paiements abandonnés.
 - Prix en euros et en roubles avec des taux de change enregistrés.
 - JWT déplacés de `localStorage` vers des cookies httpOnly, avec protection
   CSRF et révocation des jetons.
 - Recherche plein texte PostgreSQL en quatre langues avec tolérance aux fautes
   à la place de la recherche par sous-chaîne.
 - Traduction de l'interface, des messages de l'API et du catalogue en russe,
-  en français et en allemand, avec DeepL pour les nouveaux livres.
+  en français et en allemand, avec DeepL pour les nouveaux livres et une
+  relecture des traductions automatiques.
 - Nouvelle vitrine avec l'état dans l'URL, un mode sombre, une version mobile
   et de vraies couvertures pour les livres de démo.
 - Documentation de l'API avec OpenAPI et Swagger UI, limites de débit, health
   check et réglages HTTPS.
-- 207 tests, un test de fumée dans le navigateur, et les tests du backend
+- 229 tests, un test de fumée dans le navigateur, et les tests du backend
   tournent en CI sur SQLite et sur PostgreSQL.
 
 ## Captures d'écran
@@ -284,8 +307,8 @@ pnpm run dev                            # http://127.0.0.1:5173
 Les couvertures des livres de démo sont dans `backend/main/fixtures/covers/`,
 donc `seed` fonctionne sans Internet. `--flush` repart d'un catalogue vide.
 `python manage.py translate_books` complète les traductions manquantes avec
-DeepL. Lancez `update_exchange_rates` une fois par jour avec cron ou un autre
-planificateur.
+DeepL. `python manage.py run_scheduler` lance les tâches périodiques, et
+`run_scheduler --once` fait un seul passage pour cron.
 
 ## Configuration
 
@@ -304,8 +327,11 @@ dans `.env`, voir [`.env.example`](.env.example).
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Clés Stripe | aucune |
 | `DEEPL_API_KEY` | Traduction automatique des nouveaux livres | aucune |
 | `AUTO_TRANSLATE_BOOKS` | Traduire un livre à sa création | `True` |
+| `PUBLISH_UNREVIEWED_TRANSLATIONS` | Afficher les traductions automatiques avant relecture | `True` |
 | `EXCHANGE_RATES_URL` | Source des taux avec USD comme base | open.er-api.com |
 | `UPDATE_RATES_ON_START` | Mettre à jour les taux au démarrage du conteneur | `1` |
+| `EXCHANGE_RATES_INTERVAL_HOURS` | Fréquence de mise à jour des taux par le planificateur | `24` |
+| `PAYMENT_TIMEOUT_HOURS` | Délai après lequel un paiement inachevé est annulé | `24` |
 | `SEED_ON_START` | Charger les données de démo au démarrage du conteneur | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Compte administrateur créé au démarrage | aucun |
 | `HTTPS` | Cookies sécurisés, HSTS, redirection vers HTTPS | `False` |
@@ -325,16 +351,17 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # test dans le navigateur sur l'application lancée
 ```
 
-Le backend a 113 tests avec 96 % de couverture. Ils vérifient l'API,
+Le backend a 133 tests avec 96 % de couverture. Ils vérifient l'API,
 l'authentification par cookies et le CSRF, la commande, l'annulation, les deux
-fournisseurs de paiement avec la signature du webhook, la conversion des
-devises, la recherche plein texte, la traduction automatique, le nombre de
-requêtes SQL et les limites de débit. La CI les lance sur SQLite et sur
-PostgreSQL. Le frontend a 94 tests avec 94 % de couverture pour les pages, le
+fournisseurs de paiement avec la signature du webhook, les remboursements et
+leurs relances, le planificateur, la conversion des devises, la recherche
+plein texte, la traduction automatique et sa relecture, le nombre de requêtes
+SQL et les limites de débit. La CI les lance sur SQLite et sur
+PostgreSQL. Le frontend a 96 tests avec 94 % de couverture pour les pages, le
 formulaire de paiement, les contrôles du routeur, le client API, les devises
 et les traductions. Le test de fumée se connecte, achète un livre, paie avec
-une carte refusée puis avec une carte valide et vérifie qu'aucun jeton n'est
-lisible depuis JavaScript.
+une carte refusée puis avec une carte valide, annule la commande pour être
+remboursé et vérifie qu'aucun jeton n'est lisible depuis JavaScript.
 
 Les captures dans toutes les langues sont prises sur l'application en marche
 avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -343,13 +370,13 @@ avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
 
 Ce qui manque dans la version actuelle.
 
-- Les remboursements ne sont pas envoyés automatiquement. Un paiement pour une
-  commande annulée pendant le paiement est signalé dans l'administration, et
-  l'équipe le rembourse dans Stripe.
-- L'ensemble n'a pas de planificateur. Les taux sont mis à jour au démarrage
-  du conteneur ou avec `update_exchange_rates` lancé par cron.
-- Les traductions DeepL sont automatiques. Mieux vaut les relire dans
-  l'administration.
+- Il n'y a ni adresse de livraison, ni frais de port, ni calcul des taxes. La
+  livraison est affichée comme gratuite.
+- Un remboursement rend toujours le montant complet. Les remboursements
+  partiels se font dans le tableau de bord Stripe.
+- La liste des devises (USD, EUR, RUB) est définie dans le réglage
+  `CURRENCIES`. En ajouter une demande une modification du code et un taux
+  dans la source.
 
 ## Structure du projet
 
@@ -359,12 +386,12 @@ Ce qui manque dans la version actuelle.
 │   ├── locale/              # messages de l'API en russe, français et allemand (gettext)
 │   └── main/
 │       ├── fixtures/covers/ # couvertures des livres de démo
-│       ├── management/      # seed, update_exchange_rates, translate_books
+│       ├── management/      # seed, update_exchange_rates, translate_books, run_scheduler
 │       ├── payments/        # fournisseurs démo et Stripe
 │       ├── migrations/
 │       ├── tests/           # auth, cœur, devises, paiements, recherche, traduction
 │       ├── authentication.py, auth_views.py, payment_views.py
-│       ├── currency.py, search.py, machine_translation.py
+│       ├── currency.py, search.py, machine_translation.py, scheduler.py
 │       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/

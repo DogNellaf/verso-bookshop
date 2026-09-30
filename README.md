@@ -29,7 +29,8 @@ docker compose up --build
 Open <http://localhost:8080> and press **Use demo account** on the sign in
 page, or sign in as **demo / demopass123**. The demo user has three orders and
 a few books in the cart. On the first start the database gets 18 classic
-novels with covers and fresh exchange rates.
+novels with covers and fresh exchange rates. A separate scheduler container
+keeps the rates up to date and retries failed refunds.
 
 To try a payment, check out the cart and pay with the test card
 **4242 4242 4242 4242** (any future date, any code). The card
@@ -60,7 +61,7 @@ order goes through these statuses.
 | **Pending** | Checkout | Copies are taken from stock |
 | **Paid** | A successful payment (demo card or Stripe webhook) | No change |
 | **Shipped, Delivered** | Staff in the admin | No change |
-| **Cancelled** | The customer, only while the order is pending | Copies go back to stock |
+| **Cancelled** | The customer, until the order ships. A paid order is refunded | Copies go back to stock |
 
 Checkout runs in one transaction and locks the book rows before it checks the
 stock.
@@ -88,8 +89,17 @@ with transaction.atomic():
   card number with the Luhn algorithm and has test cards for success, decline
   and missing funds. The Stripe provider creates a Checkout Session, and only
   the signed Stripe webhook marks an order as paid. Webhook deliveries are
-  idempotent, and money that arrives for an order cancelled in the meantime is
-  flagged for a refund.
+  idempotent.
+- Cancelling a paid order refunds the money through the same provider, and so
+  does a payment that arrives for an order cancelled in the meantime. The
+  payment row stays locked during the call and Stripe gets an idempotency key,
+  so money is never returned twice. A failed refund is retried by the
+  scheduler, and staff can refund any payment from the admin.
+- The scheduler is a management command in its own container. It updates the
+  exchange rates once a day, retries refunds every 15 minutes and cancels
+  payments nobody finished within a day. Each job locks its row in the
+  `JobRun` table, so two scheduler processes never run the same job, and the
+  admin shows the time and result of the last run.
 - Prices are stored in US dollars. `ExchangeRate` rows hold the rates, a
   command updates them from a public feed, and a middleware converts prices
   for the currency the SPA asks for in `X-Currency`. Price filters work in the
@@ -140,9 +150,11 @@ with transaction.atomic():
   that all languages have the same keys.
 - Book titles, authors and descriptions are stored in `BookTranslation`, one
   row per language, with a fallback to English. With `DEEPL_API_KEY` set, a
-  new book is translated automatically when staff add it. The admin shows which
-  books miss a language and can translate selected books. Staff can edit every
-  translation.
+  new book is translated automatically when staff add it.
+- Machine translations are marked for review. The admin has a review queue and
+  a "Mark as reviewed" action, and saving an edited translation counts as a
+  review. With `PUBLISH_UNREVIEWED_TRANSLATIONS=False` the storefront keeps the
+  English text until a person has approved the translation.
 - API error messages, including card errors, are translated with Django
   gettext. The frontend sends the chosen language in `Accept-Language`. CI
   checks that the compiled `.mo` files match the `.po` files.
@@ -162,6 +174,9 @@ flowchart LR
     S -->|signed webhook| G
     G -->|new books| D[DeepL]
     G -->|daily rates| R[Exchange rate feed]
+    C[Scheduler<br/>run_scheduler] --> P
+    C --> R
+    C -->|refund retries| S
 ```
 
 The SPA and the API share one origin, so there is no CORS in production and
@@ -176,6 +191,7 @@ paths to `runserver`.
 | `backend/main/currency.py` | Active currency, conversion, rate cache |
 | `backend/main/search.py` | Search document, full-text query, trigram fallback |
 | `backend/main/machine_translation.py` | DeepL translation of new books |
+| `backend/main/scheduler.py` | Periodic jobs and their `JobRun` records |
 | `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
 | `frontend/src/services/api.ts` | Typed API client, CSRF, shared session refresh |
 | `frontend/src/currency.ts`, `i18n/` | Currency and language choice, texts in four languages |
@@ -191,19 +207,23 @@ API and a Vue frontend. The overhaul included these changes.
   PostCSS, React types, analytics and placeholder images.
 - Added order cancellation, catalog filters and a cart with a fixed number of
   queries.
-- Added card payments with a demo provider and Stripe Checkout.
+- Added card payments with a demo provider and Stripe Checkout, with automatic
+  refunds when a paid order is cancelled.
+- Added a scheduler container for exchange rates, refund retries and stale
+  payments.
 - Added prices in euros and rubles with stored exchange rates.
 - Moved JWT tokens from `localStorage` to httpOnly cookies with CSRF
   protection and token revocation.
 - Replaced substring search with PostgreSQL full-text search in four languages
   with typo tolerance.
 - Translated the interface, the API messages and the catalog into Russian,
-  French and German, with DeepL for new books.
+  French and German, with DeepL for new books and a review queue for machine
+  translations.
 - Rebuilt the storefront with state in the URL, dark mode and a mobile layout,
   and added real covers for the demo books.
 - Documented the API with OpenAPI and Swagger UI, added rate limits, a health
   check and HTTPS settings.
-- Grew the test suite to 207 tests, added a browser smoke test and ran the
+- Grew the test suite to 229 tests, added a browser smoke test and ran the
   backend tests on both SQLite and PostgreSQL in CI.
 
 ## Screenshots
@@ -266,7 +286,8 @@ pnpm run dev                            # http://127.0.0.1:5173
 Covers of the demo books are stored in `backend/main/fixtures/covers/`, so
 `seed` works offline. `--flush` starts from an empty catalog.
 `python manage.py translate_books` fills in missing translations with DeepL.
-Run `update_exchange_rates` once a day from cron or any scheduler.
+`python manage.py run_scheduler` runs the periodic jobs, and
+`run_scheduler --once` does a single pass for cron.
 
 ## Configuration
 
@@ -285,8 +306,11 @@ Settings are read from environment variables. docker-compose takes them from
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe keys | none |
 | `DEEPL_API_KEY` | Machine translation of new books | none |
 | `AUTO_TRANSLATE_BOOKS` | Translate a book when it is created | `True` |
+| `PUBLISH_UNREVIEWED_TRANSLATIONS` | Show machine translations before review | `True` |
 | `EXCHANGE_RATES_URL` | Rate feed with USD as the base | open.er-api.com |
 | `UPDATE_RATES_ON_START` | Fetch rates when the container starts | `1` |
+| `EXCHANGE_RATES_INTERVAL_HOURS` | How often the scheduler fetches rates | `24` |
+| `PAYMENT_TIMEOUT_HOURS` | Unfinished payments older than this are cancelled | `24` |
 | `SEED_ON_START` | Load demo data when the container starts | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Admin account created on start | none |
 | `HTTPS` | Secure cookies, HSTS, redirect to HTTPS | `False` |
@@ -306,14 +330,16 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # browser test against a running app
 ```
 
-The backend has 113 tests with 96% coverage. They cover the API, cookie
+The backend has 133 tests with 96% coverage. They cover the API, cookie
 authentication and CSRF, checkout, cancellation, both payment providers
-including webhook signatures, currency conversion, full-text search, machine
-translation, the number of SQL queries and rate limits. CI runs them on SQLite
-and on PostgreSQL. The frontend has 94 tests with 94% coverage for pages, the
+including webhook signatures, refunds and their retries, the scheduler,
+currency conversion, full-text search, machine translation and its review,
+the number of SQL queries and rate limits. CI runs them on SQLite
+and on PostgreSQL. The frontend has 96 tests with 94% coverage for pages, the
 payment form, router guards, the API client, currencies and translations. The
-smoke test signs in, buys a book, pays with a declined and a working test card
-and checks that no token is readable from JavaScript.
+smoke test signs in, buys a book, pays with a declined and a working test card,
+cancels the order to get a refund and checks that no token is readable from
+JavaScript.
 
 Screenshots for all languages are taken from a running app with
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -322,13 +348,12 @@ Screenshots for all languages are taken from a running app with
 
 Known limits of the current version.
 
-- Refunds are not sent automatically. A payment for an order that was
-  cancelled during checkout is flagged in the admin, and staff refund it in
-  Stripe.
-- The stack has no scheduler. Exchange rates are updated on container start or
-  by running `update_exchange_rates` from cron.
-- DeepL translations are machine quality. Staff may want to check them in the
-  admin.
+- There is no delivery address, shipping cost or tax calculation. Shipping is
+  shown as free.
+- Refunds always return the full amount. Partial refunds are done in the
+  Stripe dashboard.
+- The list of currencies (USD, EUR, RUB) is set in `CURRENCIES` in the
+  settings. Adding one needs a code change and a rate in the feed.
 
 ## Project structure
 
@@ -338,12 +363,12 @@ Known limits of the current version.
 │   ├── locale/              # API messages in Russian, French and German (gettext)
 │   └── main/
 │       ├── fixtures/covers/ # covers of the demo books
-│       ├── management/      # seed, update_exchange_rates, translate_books
+│       ├── management/      # seed, update_exchange_rates, translate_books, run_scheduler
 │       ├── payments/        # demo and Stripe providers
 │       ├── migrations/
 │       ├── tests/           # auth, core, currency, payments, search, translation
 │       ├── authentication.py, auth_views.py, payment_views.py
-│       ├── currency.py, search.py, machine_translation.py
+│       ├── currency.py, search.py, machine_translation.py, scheduler.py
 │       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/

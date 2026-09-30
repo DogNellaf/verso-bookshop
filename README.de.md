@@ -30,7 +30,8 @@ docker compose up --build
 **Demo-Konto nutzen**, oder melden Sie sich mit **demo / demopass123** an. Der
 Demo-Nutzer hat schon drei Bestellungen und einige Bücher im Warenkorb. Beim
 ersten Start bekommt die Datenbank 18 klassische Romane mit Covern und
-aktuelle Wechselkurse.
+aktuelle Wechselkurse. Ein eigener Planer-Container hält die Kurse aktuell und
+wiederholt fehlgeschlagene Erstattungen.
 
 Zum Ausprobieren einer Zahlung bestellen Sie den Warenkorb und bezahlen mit
 der Testkarte **4242 4242 4242 4242** (beliebiges künftiges Datum, beliebiger
@@ -64,7 +65,7 @@ Eine Bestellung durchläuft diese Status.
 | **Ausstehend** | Die Bestellung | Exemplare werden vom Bestand abgebucht |
 | **Bezahlt** | Eine erfolgreiche Zahlung (Demo-Karte oder Stripe-Webhook) | Keine Änderung |
 | **Versandt, Zugestellt** | Mitarbeitende im Admin | Keine Änderung |
-| **Storniert** | Die Kundschaft, nur solange die Bestellung aussteht | Exemplare gehen zurück in den Bestand |
+| **Storniert** | Die Kundschaft, bis die Bestellung versandt ist. Eine bezahlte Bestellung wird erstattet | Exemplare gehen zurück in den Bestand |
 
 Die Bestellung läuft in einer Transaktion. Zuerst werden die Buchzeilen
 gesperrt, danach wird der Bestand geprüft.
@@ -93,8 +94,18 @@ with transaction.atomic():
   prüft die Kartennummer mit dem Luhn-Algorithmus und hat Testkarten für
   Erfolg, Ablehnung und fehlende Deckung. Der Stripe-Anbieter legt eine
   Checkout Session an, und erst der signierte Stripe-Webhook markiert die
-  Bestellung als bezahlt. Doppelte Webhooks ändern nichts, und Geld für eine
-  inzwischen stornierte Bestellung wird für eine Rückerstattung markiert.
+  Bestellung als bezahlt. Doppelte Webhooks ändern nichts.
+- Wird eine bezahlte Bestellung storniert, geht das Geld über denselben
+  Anbieter zurück, ebenso bei einer Zahlung für eine bereits stornierte
+  Bestellung. Die Zahlungszeile bleibt während des Aufrufs gesperrt und
+  Stripe bekommt einen Idempotenzschlüssel, daher wird nie doppelt erstattet.
+  Eine fehlgeschlagene Erstattung wiederholt der Planer, und Mitarbeitende
+  können jede Zahlung im Admin erstatten.
+- Der Planer ist ein Management-Befehl in einem eigenen Container. Er holt
+  einmal am Tag die Wechselkurse, wiederholt alle 15 Minuten Erstattungen und
+  storniert Zahlungen, die nach einem Tag noch offen sind. Jeder Job sperrt
+  seine Zeile in der Tabelle `JobRun`, daher laufen nie zwei Prozesse mit
+  demselben Job, und der Admin zeigt Zeit und Ergebnis des letzten Laufs.
 - Preise werden in US-Dollar gespeichert. Die Kurse stehen in der Tabelle
   `ExchangeRate`, ein Befehl holt sie aus einer öffentlichen Quelle, und eine
   Middleware rechnet die Preise in die Währung um, die die SPA im Header
@@ -149,9 +160,12 @@ with transaction.atomic():
   dieselben Schlüssel haben.
 - Titel, Autoren und Beschreibungen der Bücher stehen in `BookTranslation`,
   eine Zeile pro Sprache, mit Rückfall auf Englisch. Ist `DEEPL_API_KEY`
-  gesetzt, wird ein neues Buch beim Anlegen automatisch übersetzt. Der Admin
-  zeigt, welchen Büchern eine Sprache fehlt, und übersetzt ausgewählte Bücher.
-  Jede Übersetzung lässt sich von Hand anpassen.
+  gesetzt, wird ein neues Buch beim Anlegen automatisch übersetzt.
+- Maschinelle Übersetzungen werden zur Prüfung markiert. Der Admin hat eine
+  Prüfliste und die Aktion „Mark as reviewed“, und das Speichern einer
+  korrigierten Übersetzung zählt als Prüfung. Mit
+  `PUBLISH_UNREVIEWED_TRANSLATIONS=False` zeigt der Shop den englischen Text,
+  bis ein Mensch die Übersetzung freigibt.
 - API-Meldungen, auch Kartenfehler, sind mit Django gettext übersetzt. Das
   Frontend schickt die gewählte Sprache im `Accept-Language`-Header. Die CI
   prüft, dass die kompilierten `.mo`-Dateien zu den `.po`-Dateien passen.
@@ -171,6 +185,9 @@ flowchart LR
     S -->|signierter Webhook| G
     G -->|neue Bücher| D[DeepL]
     G -->|tägliche Kurse| R[Kursquelle]
+    C[Planer<br/>run_scheduler] --> P
+    C --> R
+    C -->|Erstattungen wiederholen| S
 ```
 
 SPA und API teilen sich einen Origin, daher gibt es in Produktion kein CORS,
@@ -185,6 +202,7 @@ dieselben Pfade an `runserver` weiter.
 | `backend/main/currency.py` | Aktive Währung, Umrechnung, Kurs-Cache |
 | `backend/main/search.py` | Suchdokument, Volltextabfrage, Toleranz für Tippfehler |
 | `backend/main/machine_translation.py` | Übersetzung neuer Bücher mit DeepL |
+| `backend/main/scheduler.py` | Periodische Jobs und ihre Einträge in `JobRun` |
 | `backend/main/models.py` | `Book`, `BookTranslation`, `Cart`, `Order`, `Payment`, `ExchangeRate` |
 | `frontend/src/services/api.ts` | Typisierter API-Client, CSRF, gemeinsame Sitzungserneuerung |
 | `frontend/src/currency.ts`, `i18n/` | Wahl von Währung und Sprache, Texte in vier Sprachen |
@@ -200,19 +218,23 @@ Später wurde es in eine REST-API und ein Vue-Frontend aufgeteilt. Die
 - Reste einer generierten Vorlage entfernt, etwa ungenutztes Tailwind und
   PostCSS, React-Typen, Analytics und Platzhalterbilder.
 - Stornierung, Katalogfilter und ein Warenkorb mit fester Zahl an Abfragen.
-- Kartenzahlung mit einem Demo-Anbieter und Stripe Checkout.
+- Kartenzahlung mit einem Demo-Anbieter und Stripe Checkout, mit
+  automatischer Erstattung, wenn eine bezahlte Bestellung storniert wird.
+- Ein Planer-Container für Wechselkurse, wiederholte Erstattungen und
+  liegengebliebene Zahlungen.
 - Preise in Euro und Rubel mit gespeicherten Wechselkursen.
 - JWT aus `localStorage` in httpOnly-Cookies verschoben, mit CSRF-Schutz und
   Widerruf von Tokens.
 - Volltextsuche von PostgreSQL in vier Sprachen mit Toleranz für Tippfehler
   statt Suche nach Teilzeichenketten.
 - Oberfläche, API-Meldungen und Katalog auf Russisch, Französisch und Deutsch
-  übersetzt, neue Bücher übersetzt DeepL.
+  übersetzt, neue Bücher übersetzt DeepL, maschinelle Übersetzungen werden
+  geprüft.
 - Neues Frontend mit Zustand in der URL, Dark Mode, mobiler Ansicht und echten
   Covern für die Demo-Bücher.
 - API-Dokumentation mit OpenAPI und Swagger UI, Ratenlimits, Health Check und
   HTTPS-Einstellungen.
-- 207 Tests, ein Smoke-Test im Browser, und die Backend-Tests laufen in der CI
+- 229 Tests, ein Smoke-Test im Browser, und die Backend-Tests laufen in der CI
   auf SQLite und auf PostgreSQL.
 
 ## Screenshots
@@ -277,8 +299,8 @@ pnpm run dev                            # http://127.0.0.1:5173
 Die Cover der Demo-Bücher liegen in `backend/main/fixtures/covers/`, daher
 funktioniert `seed` ohne Internet. `--flush` beginnt mit einem leeren
 Katalog. `python manage.py translate_books` ergänzt fehlende Übersetzungen mit
-DeepL. `update_exchange_rates` sollte einmal am Tag über cron oder einen
-anderen Planer laufen.
+DeepL. `python manage.py run_scheduler` startet die periodischen Jobs, und
+`run_scheduler --once` macht einen einzelnen Durchlauf für cron.
 
 ## Konfiguration
 
@@ -297,8 +319,11 @@ Die Einstellungen kommen aus Umgebungsvariablen. docker-compose liest sie aus
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe-Schlüssel | keine |
 | `DEEPL_API_KEY` | Maschinelle Übersetzung neuer Bücher | keiner |
 | `AUTO_TRANSLATE_BOOKS` | Ein Buch beim Anlegen übersetzen | `True` |
+| `PUBLISH_UNREVIEWED_TRANSLATIONS` | Maschinelle Übersetzungen vor der Prüfung zeigen | `True` |
 | `EXCHANGE_RATES_URL` | Kursquelle mit USD als Basis | open.er-api.com |
 | `UPDATE_RATES_ON_START` | Kurse beim Containerstart holen | `1` |
+| `EXCHANGE_RATES_INTERVAL_HOURS` | Wie oft der Planer die Kurse holt | `24` |
+| `PAYMENT_TIMEOUT_HOURS` | Nach so vielen Stunden werden offene Zahlungen storniert | `24` |
 | `SEED_ON_START` | Demo-Daten beim Containerstart laden | `1` |
 | `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_PASSWORD`, `DJANGO_SUPERUSER_EMAIL` | Admin-Konto, das beim Start angelegt wird | keins |
 | `HTTPS` | Sichere Cookies, HSTS, Weiterleitung auf HTTPS | `False` |
@@ -318,15 +343,17 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # Browsertest gegen die laufende App
 ```
 
-Das Backend hat 113 Tests mit 96 % Abdeckung. Sie prüfen API,
+Das Backend hat 133 Tests mit 96 % Abdeckung. Sie prüfen API,
 Cookie-Anmeldung und CSRF, Bestellung, Stornierung, beide Zahlungsanbieter
-samt Webhook-Signatur, Währungsumrechnung, Volltextsuche, maschinelle
-Übersetzung, die Zahl der SQL-Abfragen und Ratenlimits. Die CI führt sie auf
-SQLite und auf PostgreSQL aus. Das Frontend hat 94 Tests mit 94 % Abdeckung
+samt Webhook-Signatur, Erstattungen und ihre Wiederholung, den Planer,
+Währungsumrechnung, Volltextsuche, maschinelle Übersetzung und ihre Prüfung,
+die Zahl der SQL-Abfragen und Ratenlimits. Die CI führt sie auf
+SQLite und auf PostgreSQL aus. Das Frontend hat 96 Tests mit 94 % Abdeckung
 für Seiten, das Zahlungsformular, Router-Prüfungen, den API-Client, Währungen
 und Übersetzungen. Der Smoke-Test meldet sich an, kauft ein Buch, bezahlt
-erst mit einer abgelehnten, dann mit einer gültigen Testkarte und prüft, dass
-JavaScript kein Token lesen kann.
+erst mit einer abgelehnten, dann mit einer gültigen Testkarte, storniert die
+Bestellung für eine Erstattung und prüft, dass JavaScript kein Token lesen
+kann.
 
 Screenshots in allen Sprachen entstehen an der laufenden App mit
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
@@ -335,12 +362,12 @@ Screenshots in allen Sprachen entstehen an der laufenden App mit
 
 Was in der aktuellen Version fehlt.
 
-- Rückerstattungen laufen nicht automatisch. Eine Zahlung für eine Bestellung,
-  die während der Zahlung storniert wurde, wird im Admin markiert, und
-  Mitarbeitende erstatten sie in Stripe.
-- Der Stack hat keinen Planer. Die Kurse werden beim Containerstart oder mit
-  `update_exchange_rates` per cron aktualisiert.
-- DeepL-Übersetzungen sind maschinell. Man sollte sie im Admin prüfen.
+- Es gibt keine Lieferadresse, keine Versandkosten und keine
+  Steuerberechnung. Der Versand wird als kostenlos angezeigt.
+- Erstattungen gehen immer über den vollen Betrag. Teilerstattungen erfolgen
+  im Stripe-Dashboard.
+- Die Währungen (USD, EUR, RUB) stehen in der Einstellung `CURRENCIES`. Für
+  eine neue Währung braucht es eine Codeänderung und einen Kurs in der Quelle.
 
 ## Projektstruktur
 
@@ -350,12 +377,12 @@ Was in der aktuellen Version fehlt.
 │   ├── locale/              # API-Meldungen auf Russisch, Französisch und Deutsch (gettext)
 │   └── main/
 │       ├── fixtures/covers/ # Cover der Demo-Bücher
-│       ├── management/      # seed, update_exchange_rates, translate_books
+│       ├── management/      # seed, update_exchange_rates, translate_books, run_scheduler
 │       ├── payments/        # Demo- und Stripe-Anbieter
 │       ├── migrations/
 │       ├── tests/           # Anmeldung, Kern, Währungen, Zahlungen, Suche, Übersetzung
 │       ├── authentication.py, auth_views.py, payment_views.py
-│       ├── currency.py, search.py, machine_translation.py
+│       ├── currency.py, search.py, machine_translation.py, scheduler.py
 │       └── models.py, serializers.py, views.py, admin.py
 ├── frontend/
 │   ├── src/
