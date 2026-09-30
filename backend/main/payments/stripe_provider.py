@@ -53,6 +53,20 @@ class StripeProvider:
         payment.redirect_url = session.url
         payment.save(update_fields=["external_id", "redirect_url"])
 
+    def refund(self, payment):
+        payment_intent = payment.provider_payment_id
+        if not payment_intent:
+            session = stripe.checkout.Session.retrieve(payment.external_id, api_key=self.api_key)
+            payment_intent = session.payment_intent
+        refund = stripe.Refund.create(
+            api_key=self.api_key,
+            payment_intent=payment_intent,
+            metadata={"payment_id": str(payment.pk), "order_id": str(payment.order_id)},
+            # Stripe answers a repeated request with the same refund.
+            idempotency_key=f"verso-refund-{payment.pk}",
+        )
+        return refund.id
+
     @staticmethod
     def parse_webhook(payload, signature):
         """Verify the Stripe signature and return the event as a plain dict."""

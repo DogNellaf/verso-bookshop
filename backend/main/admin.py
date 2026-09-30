@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin, messages
 from django.db.models import Count
 from django.utils.html import format_html
@@ -9,10 +10,12 @@ from main.models import (
     Cart,
     CartItem,
     ExchangeRate,
+    JobRun,
     Order,
     OrderItem,
     Payment,
 )
+from main.search import update_book_index
 
 admin.site.site_header = "Verso administration"
 admin.site.site_title = "Verso admin"
@@ -36,9 +39,48 @@ class StockFilter(admin.SimpleListFilter):
         return queryset
 
 
+class ReviewOnEditForm(forms.ModelForm):
+    """Saving a changed translation in the admin counts as reviewing it."""
+
+    class Meta:
+        model = BookTranslation
+        fields = ["book", "language", "title", "author", "description", "reviewed"]
+
+    def clean(self):
+        cleaned = super().clean()
+        text_changed = {"title", "author", "description"} & set(self.changed_data)
+        if text_changed and "reviewed" not in self.changed_data:
+            cleaned["reviewed"] = True
+        return cleaned
+
+
 class BookTranslationInline(admin.StackedInline):
     model = BookTranslation
+    form = ReviewOnEditForm
     extra = 0
+    fields = ("language", "title", "author", "description", "reviewed", "machine_translated")
+    readonly_fields = ("machine_translated",)
+
+
+@admin.register(BookTranslation)
+class BookTranslationAdmin(admin.ModelAdmin):
+    """A review queue for machine translations."""
+
+    form = ReviewOnEditForm
+    list_display = ("book", "language", "title", "machine_translated", "reviewed")
+    list_filter = ("reviewed", "machine_translated", "language")
+    search_fields = ("title", "book__title")
+    readonly_fields = ("machine_translated",)
+    actions = ("mark_reviewed",)
+
+    @admin.action(description="Mark as reviewed")
+    def mark_reviewed(self, request, queryset):
+        # update() skips signals, so refresh the search index by hand.
+        book_ids = set(queryset.values_list("book_id", flat=True))
+        updated = queryset.update(reviewed=True)
+        for book_id in book_ids:
+            update_book_index(Book, book_id)
+        self.message_user(request, f"{updated} translation(s) marked as reviewed.")
 
 
 class TranslationStatusFilter(admin.SimpleListFilter):
@@ -46,13 +88,19 @@ class TranslationStatusFilter(admin.SimpleListFilter):
     parameter_name = "translations"
 
     def lookups(self, request, model_admin):
-        return [("missing", "Missing some languages"), ("complete", "All languages")]
+        return [
+            ("missing", "Missing some languages"),
+            ("review", "Waiting for review"),
+            ("complete", "All languages"),
+        ]
 
     def queryset(self, request, queryset):
         full = len(machine_translation.TRANSLATED_LANGUAGES)
         queryset = queryset.annotate(translation_count=Count("translations"))
         if self.value() == "missing":
             return queryset.filter(translation_count__lt=full)
+        if self.value() == "review":
+            return queryset.filter(translations__reviewed=False).distinct()
         if self.value() == "complete":
             return queryset.filter(translation_count__gte=full)
         return queryset
@@ -75,9 +123,14 @@ class BookAdmin(admin.ModelAdmin):
     @admin.display(description="Translations")
     def translation_status(self, obj):
         missing = machine_translation.missing_languages(obj)
-        if not missing:
-            return "all"
-        return "missing " + ", ".join(missing)
+        unreviewed = {t.language for t in obj.translations.all() if not t.reviewed}
+        to_review = [c for c in machine_translation.TRANSLATED_LANGUAGES if c in unreviewed]
+        parts = []
+        if missing:
+            parts.append("missing " + ", ".join(missing))
+        if to_review:
+            parts.append("to review " + ", ".join(to_review))
+        return "; ".join(parts) or "all"
 
     @admin.action(description="Translate missing languages (DeepL)")
     def translate_missing(self, request, queryset):
@@ -184,6 +237,7 @@ class PaymentAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("provider", "status", "needs_refund")
+    actions = ("refund_selected",)
     search_fields = ("external_id", "order__buyer__username")
     readonly_fields = (
         "order",
@@ -191,13 +245,37 @@ class PaymentAdmin(admin.ModelAdmin):
         "amount",
         "currency",
         "external_id",
+        "provider_payment_id",
+        "refund_id",
         "redirect_url",
         "failure_reason",
         "created_at",
         "updated_at",
     )
 
+    @admin.action(description="Refund selected payments")
+    def refund_selected(self, request, queryset):
+        from main.payments.services import refund_payment
+
+        ids = queryset.filter(status=Payment.Status.SUCCEEDED).values_list("pk", flat=True)
+        results = [refund_payment(pk) for pk in ids]
+        failed = [p for p in results if p.status != Payment.Status.REFUNDED]
+        self.message_user(
+            request,
+            f"Refunded {len(results) - len(failed)} payment(s), {len(failed)} failed.",
+            messages.WARNING if failed else messages.SUCCESS,
+        )
+
 
 @admin.register(ExchangeRate)
 class ExchangeRateAdmin(admin.ModelAdmin):
     list_display = ("currency", "rate", "updated_at")
+
+
+@admin.register(JobRun)
+class JobRunAdmin(admin.ModelAdmin):
+    list_display = ("name", "last_started", "last_finished", "succeeded", "message")
+    readonly_fields = ("name", "last_started", "last_finished", "succeeded", "message")
+
+    def has_add_permission(self, request):
+        return False

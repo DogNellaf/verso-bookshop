@@ -1,3 +1,25 @@
+x-backend-env: &backend-env
+  DEBUG: ${DEBUG:-False}
+  SECRET_KEY: ${SECRET_KEY:-please-change-me-in-production}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+  POSTGRES_DB: ${POSTGRES_DB:-bookshop}
+  POSTGRES_USER: ${POSTGRES_USER:-bookshop}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookshop}
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  HTTPS: ${HTTPS:-False}
+  SITE_URL: ${SITE_URL:-http://localhost:8080}
+  PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-demo}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  DEEPL_API_KEY: ${DEEPL_API_KEY:-}
+  AUTO_TRANSLATE_BOOKS: ${AUTO_TRANSLATE_BOOKS:-True}
+  PUBLISH_UNREVIEWED_TRANSLATIONS: ${PUBLISH_UNREVIEWED_TRANSLATIONS:-True}
+  PAYMENT_TIMEOUT_HOURS: ${PAYMENT_TIMEOUT_HOURS:-24}
+  EXCHANGE_RATES_INTERVAL_HOURS: ${EXCHANGE_RATES_INTERVAL_HOURS:-24}
+
 services:
   db:
     image: postgres:16-alpine
@@ -16,25 +38,10 @@ services:
 
   backend:
     build: ./backend
+    image: verso-backend
     environment:
-      DEBUG: ${DEBUG:-False}
-      SECRET_KEY: ${SECRET_KEY:-please-change-me-in-production}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
-      POSTGRES_DB: ${POSTGRES_DB:-bookshop}
-      POSTGRES_USER: ${POSTGRES_USER:-bookshop}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookshop}
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
+      <<: *backend-env
       SEED_ON_START: ${SEED_ON_START:-1}
-      HTTPS: ${HTTPS:-False}
-      SITE_URL: ${SITE_URL:-http://localhost:8080}
-      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-demo}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
-      DEEPL_API_KEY: ${DEEPL_API_KEY:-}
-      AUTO_TRANSLATE_BOOKS: ${AUTO_TRANSLATE_BOOKS:-True}
       UPDATE_RATES_ON_START: ${UPDATE_RATES_ON_START:-1}
       DJANGO_SUPERUSER_USERNAME: ${DJANGO_SUPERUSER_USERNAME:-}
       DJANGO_SUPERUSER_EMAIL: ${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
@@ -54,6 +61,21 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    restart: unless-stopped
+
+  # Periodic jobs (exchange rates, refund retries, stale payments). Uses the
+  # backend image and starts once the backend has migrated the database.
+  scheduler:
+    build: ./backend
+    image: verso-backend
+    command: ["python", "manage.py", "run_scheduler"]
+    environment:
+      <<: *backend-env
+      SEED_ON_START: "0"
+      UPDATE_RATES_ON_START: "0"
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:

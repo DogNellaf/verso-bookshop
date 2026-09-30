@@ -59,7 +59,10 @@ def update_book_index(book_model, book_id):
     book = book_model.objects.filter(pk=book_id).prefetch_related("translations").first()
     if book is None:
         return
-    parts = document_parts(book, book.translations.all())
+    from main.serializers import is_published
+
+    translations = [t for t in book.translations.all() if is_published(t)]
+    parts = document_parts(book, translations)
     fields = {"search_text": search_text(parts)}
     if is_postgres():
         fields["search_document"] = search_vector(parts)

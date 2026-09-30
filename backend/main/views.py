@@ -14,7 +14,7 @@ from rest_framework.views import APIView
 from main import currency
 from main.filters import BookFilter
 from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
-from main.payments.services import cancel_pending_payments
+from main.payments.services import cancel_pending_payments, refund_order
 from main.search import BookSearchFilter
 from main.serializers import (
     AddCartItemSerializer,
@@ -231,7 +231,9 @@ class CheckoutView(APIView):
 def user_orders(user):
     if not user.is_authenticated:  # schema generation calls this anonymously
         return Order.objects.none()
-    return Order.objects.filter(buyer=user).prefetch_related("items__book__translations")
+    return Order.objects.filter(buyer=user).prefetch_related(
+        "items__book__translations", "payments"
+    )
 
 
 class OrderListView(generics.ListAPIView):
@@ -252,7 +254,7 @@ class OrderDetailView(generics.RetrieveAPIView):
 
 
 class OrderCancelView(APIView):
-    """Cancel a pending order and return its items to stock."""
+    """Cancel a pending or paid order, restock the books and refund the money."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -260,8 +262,10 @@ class OrderCancelView(APIView):
     def post(self, request, pk):
         with transaction.atomic():
             order = get_object_or_404(Order.objects.select_for_update(), pk=pk, buyer=request.user)
-            if order.status != Order.Status.PENDING:
-                raise ValidationError({"detail": _("Only pending orders can be cancelled.")})
+            if order.status not in (Order.Status.PENDING, Order.Status.PAID):
+                raise ValidationError(
+                    {"detail": _("Orders that have been shipped can no longer be cancelled.")}
+                )
 
             items = list(order.items.all())
             book_ids = [item.book_id for item in items if item.book_id]
@@ -278,4 +282,6 @@ class OrderCancelView(APIView):
             order.save(update_fields=["status"])
             cancel_pending_payments(order)
 
+        # Talk to the payment provider only after the cancellation is saved.
+        refund_order(order)
         return Response(OrderSerializer(user_orders(request.user).get(pk=order.pk)).data)

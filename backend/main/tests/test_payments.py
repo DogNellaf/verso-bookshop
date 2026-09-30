@@ -157,6 +157,7 @@ class StripePaymentTest(PaymentTestCase):
                     "id": "cs_test_123",
                     "object": "checkout.session",
                     "payment_status": payment_status,
+                    "payment_intent": "pi_123",
                     "metadata": {"payment_id": str(payment_id)},
                 }
             },
@@ -204,12 +205,19 @@ class StripePaymentTest(PaymentTestCase):
         self.assertEqual(Payment.objects.get(pk=payment["id"]).status, "failed")
         self.assertEqual(self.order().status, Order.Status.PENDING)
 
-    def test_money_for_a_cancelled_order_is_flagged_for_refund(self):
+    def test_money_for_a_cancelled_order_is_refunded_right_away(self):
         payment, _ = self.start_stripe()
         self.client.post(reverse("api_order_cancel", args=[self.order_id]))
-        self.webhook("checkout.session.completed", payment["id"])
+        with mock.patch("stripe.Refund.create", return_value=mock.Mock(id="re_1")) as refund:
+            self.webhook("checkout.session.completed", payment["id"])
+        refund.assert_called_once()
+        self.assertEqual(refund.call_args.kwargs["payment_intent"], "pi_123")
+        self.assertEqual(
+            refund.call_args.kwargs["idempotency_key"], f"verso-refund-{payment['id']}"
+        )
         stored = Payment.objects.get(pk=payment["id"])
-        self.assertTrue(stored.needs_refund)
+        self.assertEqual((stored.status, stored.refund_id), ("refunded", "re_1"))
+        self.assertFalse(stored.needs_refund)
         self.assertEqual(self.order().status, Order.Status.CANCELLED)
 
     def test_demo_confirm_is_not_available_for_stripe_payments(self):

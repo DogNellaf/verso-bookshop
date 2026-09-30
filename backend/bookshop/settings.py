@@ -114,12 +114,23 @@ LOCALE_PATHS = [BASE_DIR / "locale"]
 # added by hand in the admin.
 DEEPL_API_KEY = os.environ.get("DEEPL_API_KEY", "")
 AUTO_TRANSLATE_BOOKS = os.environ.get("AUTO_TRANSLATE_BOOKS", "True") == "True"
+# Show machine translations before staff have reviewed them. When False the
+# storefront keeps the English text until a translation is approved.
+PUBLISH_UNREVIEWED_TRANSLATIONS = (
+    os.environ.get("PUBLISH_UNREVIEWED_TRANSLATIONS", "True") == "True"
+)
 
 # Payments. "demo" accepts test cards without real money, "stripe" uses
 # Stripe Checkout and needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.
 PAYMENT_PROVIDER = os.environ.get("PAYMENT_PROVIDER", "demo")
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+# Pending payments older than this are cancelled by the scheduler.
+PAYMENT_TIMEOUT_HOURS = int(os.environ.get("PAYMENT_TIMEOUT_HOURS", "24"))
+
+# How often the scheduler fetches exchange rates.
+EXCHANGE_RATES_INTERVAL_HOURS = int(os.environ.get("EXCHANGE_RATES_INTERVAL_HOURS", "24"))
+
 # Public address of the site, used for links back from the payment page.
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8080").rstrip("/")
 

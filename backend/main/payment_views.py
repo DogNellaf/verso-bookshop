@@ -134,7 +134,11 @@ class StripeWebhookView(APIView):
             event["type"] == "checkout.session.completed"
             and session.get("payment_status") == "paid"
         ):
-            mark_succeeded(payment_id, external_id=session.get("id", ""))
+            mark_succeeded(
+                payment_id,
+                external_id=session.get("id", ""),
+                provider_payment_id=session.get("payment_intent") or "",
+            )
         elif event["type"] in ("checkout.session.expired", "checkout.session.async_payment_failed"):
             mark_failed(payment_id, "Checkout session expired or failed.")
         return Response(status=status.HTTP_200_OK)

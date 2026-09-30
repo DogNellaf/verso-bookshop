@@ -3,7 +3,9 @@
 New books are written in English. With DEEPL_API_KEY set, the missing
 Russian, French and German versions are filled in automatically when a book
 is created, from the admin ("Translate missing languages") or with
-``python manage.py translate_books``. Staff can edit the result afterwards.
+``python manage.py translate_books``. Machine translations are marked for
+review. Staff check them in the admin, and until then the storefront shows
+them only if PUBLISH_UNREVIEWED_TRANSLATIONS is on.
 """
 
 import json
@@ -77,7 +79,13 @@ def translate_book(book, languages=None, overwrite=False):
         BookTranslation.objects.update_or_create(
             book=book,
             language=language,
-            defaults={"title": title, "author": author, "description": description},
+            defaults={
+                "title": title,
+                "author": author,
+                "description": description,
+                "machine_translated": True,
+                "reviewed": False,
+            },
         )
         done.append(language)
     return done

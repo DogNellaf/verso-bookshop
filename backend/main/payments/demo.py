@@ -62,6 +62,9 @@ class DemoProvider:
         payment.redirect_url = ""
         payment.save(update_fields=["redirect_url"])
 
+    def refund(self, payment):
+        return f"demo-refund-{payment.pk}"
+
     def charge(self, number):
         """Return None on success or a translated failure reason."""
         if number == DECLINED:

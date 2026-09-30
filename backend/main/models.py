@@ -58,6 +58,10 @@ class BookTranslation(models.Model):
     title = models.CharField(max_length=255, verbose_name="Title")
     author = models.CharField(max_length=255, verbose_name="Author")
     description = models.TextField(verbose_name="Description")
+    # Machine translations wait for a person to check them. Editing a
+    # translation in the admin counts as a review.
+    machine_translated = models.BooleanField(default=False, verbose_name="Machine translated")
+    reviewed = models.BooleanField(default=True, verbose_name="Reviewed")
 
     class Meta:
         verbose_name = "Book translation"
@@ -258,6 +262,7 @@ class Payment(models.Model):
         SUCCEEDED = "succeeded", "Succeeded"
         FAILED = "failed", "Failed"
         CANCELLED = "cancelled", "Cancelled"
+        REFUNDED = "refunded", "Refunded"
 
     order = models.ForeignKey(
         Order,
@@ -276,9 +281,14 @@ class Payment(models.Model):
     currency = models.CharField(max_length=3, verbose_name="Currency")
     # Session or charge id at the provider, e.g. a Stripe Checkout Session id.
     external_id = models.CharField(max_length=255, blank=True, db_index=True)
+    # The provider's id of the captured money (a Stripe PaymentIntent), used
+    # for refunds.
+    provider_payment_id = models.CharField(max_length=255, blank=True)
+    refund_id = models.CharField(max_length=255, blank=True)
     redirect_url = models.URLField(max_length=1000, blank=True)
     failure_reason = models.CharField(max_length=255, blank=True)
-    # Set when money arrived for an order that was cancelled in the meantime.
+    # Set while a refund is owed but has not gone through yet. The scheduler
+    # retries these.
     needs_refund = models.BooleanField(default=False, verbose_name="Needs refund")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Created at")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Updated at")
@@ -290,3 +300,21 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"Payment #{self.pk} for order #{self.order_id} ({self.status})"
+
+
+class JobRun(models.Model):
+    """The last run of a scheduled job (see the run_scheduler command)."""
+
+    name = models.CharField(max_length=64, primary_key=True, verbose_name="Job")
+    last_started = models.DateTimeField(null=True, verbose_name="Last started")
+    last_finished = models.DateTimeField(null=True, verbose_name="Last finished")
+    succeeded = models.BooleanField(default=False, verbose_name="Succeeded")
+    message = models.TextField(blank=True, verbose_name="Message")
+
+    class Meta:
+        verbose_name = "Scheduled job"
+        verbose_name_plural = "Scheduled jobs"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name

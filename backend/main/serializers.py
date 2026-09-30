@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.utils.translation import get_language
@@ -7,7 +8,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from main import currency
-from main.models import Book, Cart, CartItem, Order, OrderItem
+from main.models import Book, Cart, CartItem, Order, OrderItem, Payment
 
 TRANSLATED_FIELDS = ("title", "author", "description")
 
@@ -24,7 +25,14 @@ def translation_for(book, language=None):
     language = language or current_language()
     if language == "en":
         return None
-    return next((t for t in book.translations.all() if t.language == language), None)
+    return next(
+        (t for t in book.translations.all() if t.language == language and is_published(t)),
+        None,
+    )
+
+
+def is_published(translation):
+    return translation.reviewed or settings.PUBLISH_UNREVIEWED_TRANSLATIONS
 
 
 class BookSerializer(serializers.ModelSerializer):
@@ -162,7 +170,27 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     item_count = serializers.IntegerField(read_only=True)
+    refund = serializers.SerializerMethodField(
+        help_text="refunded, pending (a refund is being retried) or null"
+    )
 
     class Meta:
         model = Order
-        fields = ["id", "status", "total", "currency", "item_count", "created_at", "items"]
+        fields = [
+            "id",
+            "status",
+            "total",
+            "currency",
+            "item_count",
+            "created_at",
+            "refund",
+            "items",
+        ]
+
+    def get_refund(self, obj) -> str | None:
+        payments = obj.payments.all()
+        if any(p.needs_refund for p in payments):
+            return "pending"
+        if any(p.status == Payment.Status.REFUNDED for p in payments):
+            return "refunded"
+        return None
