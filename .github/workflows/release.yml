@@ -1,10 +1,16 @@
 name: Release
 
 # Pushing a tag such as v1.0.0 publishes a GitHub release with the notes of
-# that version from CHANGELOG.md.
+# that version from CHANGELOG.md and a screenshot of the store. Running the
+# workflow by hand for an existing tag refreshes its release.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of the release to publish or refresh
+        required: true
 
 permissions:
   contents: write
@@ -12,20 +18,32 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
 
-      - name: Extract the release notes
+      - name: Write the release notes
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
+          image="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${TAG}/docs/screenshots/en/catalog.png"
+          printf '![Verso catalog](%s)\n\n' "$image" > notes.md
           awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { found = 1; next }
             found && /^(## )?\[/ { exit }
             found { print }
-          ' CHANGELOG.md > notes.md
-          test -s notes.md
+          ' CHANGELOG.md > changes.md
+          test -s changes.md
+          cat changes.md >> notes.md
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "Verso $GITHUB_REF_NAME" --notes-file notes.md
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --title "Verso $TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --title "Verso $TAG" --notes-file notes.md
+          fi
