@@ -1,5 +1,7 @@
 line-length = 100
-target-version = "py312"
+# The app runs on Python 3.14. py313 keeps the parenthesised except clauses
+# that ruff would otherwise rewrite to the new PEP 758 form.
+target-version = "py313"
 extend-exclude = ["main/migrations", ".venv"]
 
 [lint]
