@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] - 2026-10-02
+
+Platform upgrade and two fixes found in review.
 
 ### Changed
 
@@ -9,9 +11,12 @@
 - The backend image no longer installs a compiler, all packages come as
   wheels.
 - The frontend test suite has a coverage threshold in CI.
+- CI runs Django's deployment checklist.
 
 ### Fixed
 
+- With HTTPS turned on, the container health check was redirected to HTTPS,
+  so the backend never became healthy and the other services didn't start.
 - The tax line on the Stripe receipt shows the rate without trailing zeros.
 
 ## [1.0.0] - 2026-10-02
@@ -49,5 +54,5 @@ The first complete version of the store.
 - Backend and frontend tests at 95% coverage, CI on SQLite and PostgreSQL, and
   a browser smoke test against the full stack.
 
-[Unreleased]: https://github.com/DogNellaf/verso-bookshop/compare/v1.0.0...HEAD
+[1.1.0]: https://github.com/DogNellaf/verso-bookshop/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/DogNellaf/verso-bookshop/releases/tag/v1.0.0
