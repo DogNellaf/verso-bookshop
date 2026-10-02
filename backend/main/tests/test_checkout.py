@@ -154,6 +154,7 @@ class CheckoutWithAddressTest(CheckoutTestCase):
         amounts = [line["price_data"]["unit_amount"] * line["quantity"] for line in lines]
         self.assertEqual(sum(amounts), 2888)
         self.assertEqual(lines[1]["price_data"]["product_data"]["name"], "Standard")
+        self.assertEqual(lines[2]["price_data"]["product_data"]["name"], "Tax 7%")
 
 
 class RegionalTaxTest(CheckoutTestCase):

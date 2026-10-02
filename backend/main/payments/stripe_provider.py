@@ -44,7 +44,7 @@ class StripeProvider:
         # the order total.
         for name, amount in (
             (order.shipping_method or "Shipping", order.shipping_cost),
-            (f"Tax {order.tax_rate}%", order.tax_amount),
+            (f"Tax {order.tax_rate.normalize():f}%", order.tax_amount),
         ):
             if amount > 0:
                 line_items.append(
