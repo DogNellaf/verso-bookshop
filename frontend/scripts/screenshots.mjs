@@ -6,6 +6,8 @@
 //
 // Expects the demo data from `python manage.py seed` (user demo/demopass123).
 // Needs a Chromium for Playwright: `pnpm exec playwright install chromium`.
+// If pngquant is installed, the captures are compressed afterwards.
+import { execFileSync } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,11 +21,14 @@ let OUT_DIR = ROOT_DIR
 const desktop = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1.5 }
 const mobile = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }
 
+const captured = []
+
 const settle = (page) => page.waitForLoadState('networkidle').then(() => page.waitForTimeout(300))
 
 async function shoot(page, name, { fullPage = false } = {}) {
   await settle(page)
   await page.screenshot({ path: `${OUT_DIR}/${name}.png`, fullPage })
+  captured.push(`${OUT_DIR}/${name}.png`)
   console.log(`  ✓ ${name}.png`)
 }
 
@@ -117,4 +122,13 @@ try {
   })
 } finally {
   await browser.close()
+}
+
+try {
+  execFileSync('pngquant', ['--quality=80-95', '--speed=1', '--strip', '--force', '--ext=.png', ...captured])
+  console.log(`Compressed ${captured.length} captures with pngquant.`)
+} catch (err) {
+  // 98 and 99 mean a file would not get smaller or would lose too much, so it's kept.
+  if (err.code === 'ENOENT') console.log('pngquant not found, captures are left uncompressed.')
+  else if (![98, 99].includes(err.status)) throw err
 }
