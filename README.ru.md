@@ -8,6 +8,7 @@
 ![Vue](https://img.shields.io/badge/vue-3-42B883)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
+[![Release](https://img.shields.io/github/v/release/DogNellaf/verso-bookshop)](https://github.com/DogNellaf/verso-bookshop/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Verso это интернет-магазин книг на Django REST Framework и Vue 3. В нём можно
@@ -404,7 +405,7 @@ JavaScript не читается ни один токен.
 │       ├── management/      # seed, update_exchange_rates, translate_books, run_scheduler
 │       ├── payments/        # демо-провайдер и Stripe
 │       ├── migrations/
-│       ├── tests/           # авторизация, ядро, валюты, платежи, поиск, перевод
+│       ├── tests/           # авторизация, ядро, оформление, валюты, платежи, возвраты, планировщик, поиск, перевод
 │       ├── authentication.py, auth_views.py, payment_views.py
 │       ├── checkout.py, orders.py, countries.py
 │       ├── currency.py, search.py, machine_translation.py, scheduler.py
@@ -420,8 +421,9 @@ JavaScript не читается ни один токен.
 │   ├── scripts/             # screenshots.mjs, smoke.mjs
 │   └── nginx.conf
 ├── docs/screenshots/        # en, ru, fr, de
+├── .github/                 # workflows (CI, релиз), Dependabot
 ├── docker-compose.yml
-└── .github/workflows/ci.yml
+└── CHANGELOG.md
 ```
 
 ## Лицензия

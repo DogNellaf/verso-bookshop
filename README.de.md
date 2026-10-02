@@ -8,6 +8,7 @@
 ![Vue](https://img.shields.io/badge/vue-3-42B883)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
 ![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
+[![Release](https://img.shields.io/github/v/release/DogNellaf/verso-bookshop)](https://github.com/DogNellaf/verso-bookshop/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 Verso ist eine Online-Buchhandlung mit Django REST Framework und Vue 3. Man
@@ -415,7 +416,7 @@ Screenshots in allen Sprachen entstehen an der laufenden App mit
 │       ├── management/      # seed, update_exchange_rates, translate_books, run_scheduler
 │       ├── payments/        # Demo- und Stripe-Anbieter
 │       ├── migrations/
-│       ├── tests/           # Anmeldung, Kern, Währungen, Zahlungen, Suche, Übersetzung
+│       ├── tests/           # Anmeldung, Kern, Bestellung, Währungen, Zahlungen, Erstattungen, Planer, Suche, Übersetzung
 │       ├── authentication.py, auth_views.py, payment_views.py
 │       ├── checkout.py, orders.py, countries.py
 │       ├── currency.py, search.py, machine_translation.py, scheduler.py
@@ -431,8 +432,9 @@ Screenshots in allen Sprachen entstehen an der laufenden App mit
 │   ├── scripts/             # screenshots.mjs, smoke.mjs
 │   └── nginx.conf
 ├── docs/screenshots/        # en, ru, fr, de
+├── .github/                 # Workflows (CI, Release), Dependabot
 ├── docker-compose.yml
-└── .github/workflows/ci.yml
+└── CHANGELOG.md
 ```
 
 ## Lizenz
