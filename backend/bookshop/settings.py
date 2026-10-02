@@ -249,6 +249,12 @@ if os.environ.get("HTTPS", "False") == "True":
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    # The container health check calls the app over plain HTTP from inside.
+    SECURE_REDIRECT_EXEMPT = [r"^api/health/$"]
+
+# Subdomains and the HSTS preload list depend on the domain the shop runs on,
+# so they're left to whoever deploys it.
+SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
 
 LOGGING = {
     "version": 1,

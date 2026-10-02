@@ -1,11 +1,15 @@
+import importlib.util
+import os
 import tempfile
 from decimal import Decimal
 from io import StringIO
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework import status
 
+from bookshop import settings as settings_module
 from main.models import Book, BookTranslation, Cart, CartItem, Order, OrderItem
 from main.tests.helpers import (
     APITestCase,
@@ -510,7 +514,6 @@ class SeedCommandTest(TestCase):
 
     def test_bundled_covers_are_used_offline(self):
         from pathlib import Path
-        from unittest import mock
 
         from django.core.management import call_command
 
@@ -524,7 +527,6 @@ class SeedCommandTest(TestCase):
 
     def test_downloaded_covers_can_be_saved_for_offline_use(self):
         from pathlib import Path
-        from unittest import mock
 
         from django.core.management import call_command
 
@@ -542,7 +544,6 @@ class SeedCommandTest(TestCase):
 
     def test_flush_and_failed_downloads(self):
         from pathlib import Path
-        from unittest import mock
         from urllib.error import URLError
 
         from django.core.management import call_command
@@ -557,3 +558,20 @@ class SeedCommandTest(TestCase):
 
         self.assertFalse(Book.objects.filter(title="Leftover").exists())
         self.assertEqual(Book.objects.exclude(cover="").count(), 0)
+
+
+class HttpsSettingsTest(APITestCase):
+    def test_health_check_answers_over_http_when_https_is_on(self):
+        # Load the settings module the way a container with HTTPS=True does.
+        with mock.patch.dict(os.environ, {"HTTPS": "True"}):
+            spec = importlib.util.spec_from_file_location(
+                "https_settings", settings_module.__file__
+            )
+            https = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(https)
+        self.assertTrue(https.SECURE_SSL_REDIRECT)
+        with override_settings(
+            SECURE_SSL_REDIRECT=True, SECURE_REDIRECT_EXEMPT=https.SECURE_REDIRECT_EXEMPT
+        ):
+            self.assertEqual(self.client.get("/api/health/").status_code, 200)
+            self.assertEqual(self.client.get("/api/books/").status_code, 301)
