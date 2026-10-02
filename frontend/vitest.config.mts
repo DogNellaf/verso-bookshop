@@ -12,6 +12,7 @@ export default defineConfig({
       include: ['src/**'],
       exclude: ['src/**/*.test.ts', 'src/test/**', 'src/vite-env.d.ts', 'src/main.ts'],
       reporter: ['text-summary'],
+      thresholds: { statements: 90, lines: 90 },
     },
   },
 })

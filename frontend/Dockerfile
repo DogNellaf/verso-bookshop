@@ -1,8 +1,8 @@
 # --- Build stage ---
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 
 WORKDIR /app
-RUN npm install --global pnpm@9
+RUN npm install --global pnpm@12
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile

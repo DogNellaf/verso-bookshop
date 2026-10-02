@@ -5,7 +5,8 @@
 //   LOCALES=en,ru pnpm run screenshots       # a subset of languages
 //
 // Expects the demo data from `python manage.py seed` (user demo/demopass123).
-// Needs a Chromium for Playwright: `pnpm exec playwright install chromium`.
+// Needs a Chromium for Playwright: `pnpm exec playwright install chromium`,
+// or the path to another build in CHROMIUM_PATH.
 // If pngquant is installed, the captures are compressed afterwards.
 import { execFileSync } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
@@ -55,7 +56,7 @@ async function loginAsDemo(page) {
   await page.waitForURL(`${BASE_URL}/`)
 }
 
-const browser = await chromium.launch()
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined })
 
 // Resolve a book id through the API so the script doesn't depend on seed order.
 const bookId = await fetch(`${BASE_URL}/api/books/?search=Frankenstein`)

@@ -5,12 +5,14 @@
 // Signs in with the demo account, buys a book, pays with a declined and then
 // a working test card, cancels it for a refund, and checks that no auth token
 // is readable by scripts.
+// Uses the Chromium from `pnpm exec playwright install chromium`, or the one
+// in CHROMIUM_PATH.
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5173'
 
-const browser = await chromium.launch()
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined })
 const context = await browser.newContext()
 const page = await context.newPage()
 const step = (name) => console.log(`  ✓ ${name}`)

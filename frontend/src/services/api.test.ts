@@ -53,6 +53,11 @@ import {
 import { setCurrency } from '../currency'
 import { setLocale } from '../i18n'
 
+// The interceptors are registered once, when the module is imported. Keep
+// them before any mock is reset.
+const [requestInterceptor] = h.requestUse.mock.calls[0]
+const [, responseErrorHandler] = h.responseUse.mock.calls[0]
+
 const setCookie = (cookie: string) => {
   document.cookie = cookie
 }
@@ -190,7 +195,7 @@ describe('extractApiError', () => {
 
 describe('request interceptor', () => {
   const intercept = (config: Record<string, unknown> = {}) =>
-    h.requestUse.mock.calls[0][0]({ headers: {}, ...config }) as Promise<{
+    requestInterceptor({ headers: {}, ...config }) as Promise<{
       headers: Record<string, string>
     }>
 
@@ -218,7 +223,7 @@ describe('request interceptor', () => {
 })
 
 describe('response interceptor', () => {
-  const onError = (error: unknown) => h.responseUse.mock.calls[0][1](error)
+  const onError = (error: unknown) => responseErrorHandler(error)
   const unauthorized = (url = '/api/cart/') => ({
     response: { status: 401 },
     config: { url, headers: {} },

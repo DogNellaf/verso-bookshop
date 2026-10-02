@@ -94,4 +94,48 @@ describe('Cart.vue', () => {
 
     expect(wrapper.text()).toContain('Please log in')
   })
+
+  it('changes the quantity and removes items', async () => {
+    const two = { ...cartData, items: [{ ...cartData.items[0], quantity: 2 }] }
+    mockGetCart.mockResolvedValue({ data: two })
+    mockUpdate.mockResolvedValue({ data: cartData })
+    mockRemove.mockResolvedValue({ data: { ...cartData, total_quantity: 0, items: [] } })
+    const router = await createTestRouter('/cart')
+    const wrapper = mount(Cart, { global: { plugins: [router] } })
+    await flushPromises()
+
+    await wrapper.find('button[aria-label^="Increase"]').trigger('click')
+    await flushPromises()
+    expect(mockUpdate).toHaveBeenCalledWith(10, 3)
+
+    await wrapper.find('button[aria-label^="Decrease"]').trigger('click')
+    await flushPromises()
+    expect(mockUpdate).toHaveBeenLastCalledWith(10, 2)
+
+    await wrapper.find('.cart-item__remove').trigger('click')
+    await flushPromises()
+    expect(mockRemove).toHaveBeenCalledWith(10)
+    expect(wrapper.text()).toContain('Your cart is empty')
+  })
+
+  it('shows an error when an update fails', async () => {
+    mockGetCart.mockResolvedValue({ data: cartData })
+    mockRemove.mockRejectedValue(new Error('down'))
+    const router = await createTestRouter('/cart')
+    const wrapper = mount(Cart, { global: { plugins: [router] } })
+    await flushPromises()
+
+    await wrapper.find('.cart-item__remove').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.alert-error').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Dune')
+  })
+
+  it('shows an error when the cart fails to load', async () => {
+    mockGetCart.mockRejectedValue(new Error('down'))
+    const router = await createTestRouter('/cart')
+    const wrapper = mount(Cart, { global: { plugins: [router] } })
+    await flushPromises()
+    expect(wrapper.find('.alert-error').exists()).toBe(true)
+  })
 })
