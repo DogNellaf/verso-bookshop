@@ -23,13 +23,13 @@ x-backend-env: &backend-env
 
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bookshop}
       POSTGRES_USER: ${POSTGRES_USER:-bookshop}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bookshop}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookshop}"]
       interval: 5s
@@ -91,5 +91,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  pgdata:
+  postgres:
   media:
