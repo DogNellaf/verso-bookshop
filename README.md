@@ -3,11 +3,11 @@
 > 🇬🇧 English | [🇷🇺 Русский](README.ru.md) | [🇫🇷 Français](README.fr.md) | [🇩🇪 Deutsch](README.de.md)
 
 [![CI](https://github.com/DogNellaf/verso-bookshop/actions/workflows/ci.yml/badge.svg)](https://github.com/DogNellaf/verso-bookshop/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.12-3776AB)
-![Django](https://img.shields.io/badge/django-5-092E20)
+![Python](https://img.shields.io/badge/python-3.14-3776AB)
+![Django](https://img.shields.io/badge/django-6-092E20)
 ![Vue](https://img.shields.io/badge/vue-3-42B883)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
-![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
+![PostgreSQL](https://img.shields.io/badge/postgresql-18-4169E1)
 [![Release](https://img.shields.io/github/v/release/DogNellaf/verso-bookshop)](https://github.com/DogNellaf/verso-bookshop/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -260,7 +260,7 @@ API and a Vue frontend. The overhaul included these changes.
   and added real covers for the demo books.
 - Documented the API with OpenAPI and Swagger UI, added rate limits, a health
   check and HTTPS settings.
-- Grew the test suite to 287 tests, added a browser smoke test and ran the
+- Grew the test suite to 299 tests, added a browser smoke test and ran the
   backend tests on both SQLite and PostgreSQL in CI.
 
 ## Screenshots
@@ -299,7 +299,7 @@ prints the webhook secret.
 
 ## Running without Docker
 
-You need Python 3.12 or newer, Node.js 20 or newer and pnpm. Without Postgres
+You need Python 3.12 or newer, Node.js 22 or newer and pnpm. Without Postgres
 settings the backend uses SQLite, where search falls back to substring
 matching.
 
@@ -372,13 +372,13 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # browser test against a running app
 ```
 
-The backend has 176 tests with 95% coverage. They cover the API, cookie
+The backend has 177 tests with 95% coverage. They cover the API, cookie
 authentication and CSRF, checkout, cancellation, both payment providers
 including webhook signatures, shipping by weight, tax by country, state and ZIP
 code, full and partial refunds and their retries, the scheduler, currencies
 managed in the admin, full-text search, machine translation and its review, the
 number of SQL queries and rate limits. CI runs them on SQLite and on
-PostgreSQL. The frontend has 111 tests with 95% coverage for the checkout,
+PostgreSQL. The frontend has 122 tests with 94% coverage for the checkout,
 pages, the payment form, router guards, the API client, currencies and
 translations. The smoke test runs in CI against the full Docker Compose stack.
 It signs in, checks the New York City sales tax, buys a book with delivery to

@@ -3,11 +3,11 @@
 > [🇬🇧 English](README.md) | [🇷🇺 Русский](README.ru.md) | 🇫🇷 Français | [🇩🇪 Deutsch](README.de.md)
 
 [![CI](https://github.com/DogNellaf/verso-bookshop/actions/workflows/ci.yml/badge.svg)](https://github.com/DogNellaf/verso-bookshop/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.12-3776AB)
-![Django](https://img.shields.io/badge/django-5-092E20)
+![Python](https://img.shields.io/badge/python-3.14-3776AB)
+![Django](https://img.shields.io/badge/django-6-092E20)
 ![Vue](https://img.shields.io/badge/vue-3-42B883)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
-![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
+![PostgreSQL](https://img.shields.io/badge/postgresql-18-4169E1)
 [![Release](https://img.shields.io/github/v/release/DogNellaf/verso-bookshop)](https://github.com/DogNellaf/verso-bookshop/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -282,7 +282,7 @@ apporté ces changements.
   et de vraies couvertures pour les livres de démo.
 - Documentation de l'API avec OpenAPI et Swagger UI, limites de débit, health
   check et réglages HTTPS.
-- 287 tests, un test de fumée dans le navigateur, et les tests du backend
+- 299 tests, un test de fumée dans le navigateur, et les tests du backend
   tournent en CI sur SQLite et sur PostgreSQL.
 
 ## Captures d'écran
@@ -323,7 +323,7 @@ affiche le secret du webhook.
 
 ## Lancer sans Docker
 
-Il faut Python 3.12 ou plus récent, Node.js 20 ou plus récent et pnpm. Sans
+Il faut Python 3.12 ou plus récent, Node.js 22 ou plus récent et pnpm. Sans
 réglages Postgres, le backend utilise SQLite et la recherche se fait par
 sous-chaîne.
 
@@ -396,14 +396,14 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # test dans le navigateur sur l'application lancée
 ```
 
-Le backend a 176 tests avec 95 % de couverture. Ils vérifient l'API,
+Le backend a 177 tests avec 95 % de couverture. Ils vérifient l'API,
 l'authentification par cookies et le CSRF, la commande, l'annulation, les deux
 fournisseurs de paiement avec la signature du webhook, la livraison au poids,
 les taxes par pays, État et code postal, les remboursements complets et
 partiels et leurs relances, le planificateur, les devises gérées dans
 l'administration, la recherche plein texte, la traduction automatique et sa
 relecture, le nombre de requêtes SQL et les limites de débit. La CI les lance
-sur SQLite et sur PostgreSQL. Le frontend a 111 tests avec 95 % de couverture
+sur SQLite et sur PostgreSQL. Le frontend a 122 tests avec 94 % de couverture
 pour la page de commande, les pages, le formulaire de paiement, les contrôles
 du routeur, le client API, les devises et les traductions. Le test de fumée
 tourne en CI sur toute la pile Docker Compose. Il se connecte, vérifie la taxe

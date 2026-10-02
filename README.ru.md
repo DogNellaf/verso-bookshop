@@ -3,11 +3,11 @@
 > [🇬🇧 English](README.md) | 🇷🇺 Русский | [🇫🇷 Français](README.fr.md) | [🇩🇪 Deutsch](README.de.md)
 
 [![CI](https://github.com/DogNellaf/verso-bookshop/actions/workflows/ci.yml/badge.svg)](https://github.com/DogNellaf/verso-bookshop/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.12-3776AB)
-![Django](https://img.shields.io/badge/django-5-092E20)
+![Python](https://img.shields.io/badge/python-3.14-3776AB)
+![Django](https://img.shields.io/badge/django-6-092E20)
 ![Vue](https://img.shields.io/badge/vue-3-42B883)
 ![TypeScript](https://img.shields.io/badge/typescript-5-3178C6)
-![PostgreSQL](https://img.shields.io/badge/postgresql-16-4169E1)
+![PostgreSQL](https://img.shields.io/badge/postgresql-18-4169E1)
 [![Release](https://img.shields.io/github/v/release/DogNellaf/verso-bookshop)](https://github.com/DogNellaf/verso-bookshop/releases)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -265,7 +265,7 @@ SPA и API работают на одном origin, поэтому в прода
   тема и мобильная вёрстка, у демо-книг настоящие обложки.
 - API описан через OpenAPI и Swagger UI, добавлены лимиты запросов, health
   check и настройки HTTPS.
-- Тестов стало 287, появился браузерный смоук-тест, а тесты бэкенда в CI
+- Тестов стало 299, появился браузерный смоук-тест, а тесты бэкенда в CI
   запускаются на SQLite и на PostgreSQL.
 
 ## Скриншоты
@@ -306,7 +306,7 @@ SITE_URL=https://your-shop.example
 
 ## Запуск без Docker
 
-Нужны Python 3.12 или новее, Node.js 20 или новее и pnpm. Если настройки
+Нужны Python 3.12 или новее, Node.js 22 или новее и pnpm. Если настройки
 Postgres не заданы, бэкенд работает на SQLite, и поиск идёт по подстроке.
 
 ```bash
@@ -378,12 +378,12 @@ pnpm run coverage
 BASE_URL=http://localhost:8080 pnpm run smoke   # браузерный тест запущенного приложения
 ```
 
-На бэкенде 176 тестов, покрытие 95%. Они проверяют API, авторизацию через
+На бэкенде 177 тестов, покрытие 95%. Они проверяют API, авторизацию через
 cookie и CSRF, оформление и отмену заказов, оба платёжных провайдера вместе с
 подписью вебхука, доставку по весу, налоги по стране, штату и индексу, полные и
 частичные возвраты и их повторы, планировщик, валюты из админки, полнотекстовый
 поиск, машинный перевод и его проверку, число SQL-запросов и лимиты. В CI они
-запускаются на SQLite и на PostgreSQL. На фронтенде 111 тестов, покрытие 95%.
+запускаются на SQLite и на PostgreSQL. На фронтенде 122 теста, покрытие 94%.
 Они проверяют оформление заказа, страницы, форму оплаты, проверки в роутере,
 API-клиент, валюты и переводы. Смоук-тест запускается в CI против всего стека
 из Docker Compose. Он входит в аккаунт, проверяет налог с продаж Нью-Йорка,
