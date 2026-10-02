@@ -404,11 +404,11 @@ l'administration, la recherche plein texte, la traduction automatique et sa
 relecture, le nombre de requêtes SQL et les limites de débit. La CI les lance
 sur SQLite et sur PostgreSQL. Le frontend a 111 tests avec 95 % de couverture
 pour la page de commande, les pages, le formulaire de paiement, les contrôles
-du routeur, le client API, les devises et les traductions. Le test de fumée se
-connecte, vérifie la taxe de vente de New York, achète un livre livré en
-Allemagne, paie avec une carte refusée puis avec une carte valide, annule la
-commande pour être remboursé et vérifie qu'aucun jeton n'est lisible depuis
-JavaScript.
+du routeur, le client API, les devises et les traductions. Le test de fumée
+tourne en CI sur toute la pile Docker Compose. Il se connecte, vérifie la taxe
+de vente de New York, achète un livre livré en Allemagne, paie avec une carte
+refusée puis avec une carte valide, annule la commande pour être remboursé et
+vérifie qu'aucun jeton n'est lisible depuis JavaScript.
 
 Les captures dans toutes les langues sont prises sur l'application en marche
 avec `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.

@@ -379,10 +379,10 @@ managed in the admin, full-text search, machine translation and its review, the
 number of SQL queries and rate limits. CI runs them on SQLite and on
 PostgreSQL. The frontend has 111 tests with 95% coverage for the checkout,
 pages, the payment form, router guards, the API client, currencies and
-translations. The smoke test signs in, checks the New York City sales tax, buys
-a book with delivery to Germany, pays with a declined and a working test card,
-cancels the order to get a refund and checks that no token is readable from
-JavaScript.
+translations. The smoke test runs in CI against the full Docker Compose stack.
+It signs in, checks the New York City sales tax, buys a book with delivery to
+Germany, pays with a declined and a working test card, cancels the order to get
+a refund and checks that no token is readable from JavaScript.
 
 Screenshots for all languages are taken from a running app with
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.

@@ -394,11 +394,12 @@ Planer, im Admin gepflegte Währungen, Volltextsuche, maschinelle Übersetzung
 und ihre Prüfung, die Zahl der SQL-Abfragen und Ratenlimits. Die CI führt sie
 auf SQLite und auf PostgreSQL aus. Das Frontend hat 111 Tests mit 95 %
 Abdeckung für die Bestellseite, Seiten, das Zahlungsformular, Router-Prüfungen,
-den API-Client, Währungen und Übersetzungen. Der Smoke-Test meldet sich an,
-prüft die Sales Tax von New York City, kauft ein Buch mit Lieferung nach
-Deutschland, bezahlt erst mit einer abgelehnten, dann mit einer gültigen
-Testkarte, storniert die Bestellung für eine Erstattung und prüft, dass
-JavaScript kein Token lesen kann.
+den API-Client, Währungen und Übersetzungen. Der Smoke-Test läuft in der CI
+gegen den ganzen Docker-Compose-Stack. Er meldet sich an, prüft die Sales Tax
+von New York City, kauft ein Buch mit Lieferung nach Deutschland, bezahlt erst
+mit einer abgelehnten, dann mit einer gültigen Testkarte, storniert die
+Bestellung für eine Erstattung und prüft, dass JavaScript kein Token lesen
+kann.
 
 Screenshots in allen Sprachen entstehen an der laufenden App mit
 `cd frontend && BASE_URL=http://localhost:8080 pnpm run screenshots`.
